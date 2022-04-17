@@ -4,6 +4,8 @@
 
 ### sock
 
+Support SSL.
+
 A new option `ack_timeout` was added to the `spdk_sock_opts` structure.
 
 ### util
