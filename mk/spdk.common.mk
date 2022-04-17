@@ -304,6 +304,7 @@ CXXFLAGS += $(COMMON_CFLAGS) -std=c++11
 
 SYS_LIBS += -lrt
 SYS_LIBS += -luuid
+SYS_LIBS += -lssl
 SYS_LIBS += -lcrypto
 SYS_LIBS += -lm
 
