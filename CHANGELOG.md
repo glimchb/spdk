@@ -4,6 +4,9 @@
 
 ### sock
 
+Added new `ssl` based socket implementation, the code is located in module/sock/posix.
+For now we are using hard-coded PSK and only support TLS 1.3
+
 A new option `ack_timeout` was added to the `spdk_sock_opts` structure.
 
 ### util
