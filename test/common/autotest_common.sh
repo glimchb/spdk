@@ -151,6 +151,8 @@ export SPDK_AUTOTEST_X
 export SPDK_TEST_RAID5
 : ${SPDK_TEST_URING=0}
 export SPDK_TEST_URING
+: ${SPDK_TEST_SSL=0}
+export SPDK_TEST_SSL
 : ${SPDK_TEST_USE_IGB_UIO:=0}
 export SPDK_TEST_USE_IGB_UIO
 : ${SPDK_TEST_SCHEDULER:=0}
@@ -457,6 +459,10 @@ function get_config_params() {
 
 	if [ $SPDK_TEST_RAID5 -eq 1 ]; then
 		config_params+=' --with-raid5'
+	fi
+
+	if [ $SPDK_TEST_SSL -eq 1 ]; then
+		config_params+=' --with-ssl'
 	fi
 
 	if [ $SPDK_TEST_VFIOUSER -eq 1 ] || [ $SPDK_TEST_VFIOUSER_QEMU -eq 1 ]; then

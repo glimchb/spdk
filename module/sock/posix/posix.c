@@ -54,6 +54,12 @@
 #include "spdk_internal/sock.h"
 #include "../sock_kernel.h"
 
+#ifdef SPDK_CONFIG_SSL
+#include "openssl/crypto.h"
+#include "openssl/err.h"
+#include "openssl/ssl.h"
+#endif
+
 #define MAX_TMPBUF 1024
 #define PORTNUMLEN 32
 
@@ -75,6 +81,11 @@ struct spdk_posix_sock {
 	bool			zcopy;
 
 	int			placement_id;
+
+#ifdef SPDK_CONFIG_SSL
+	SSL_CTX			*ctx;
+	SSL			*ssl;
+#endif
 
 	TAILQ_ENTRY(spdk_posix_sock)	link;
 };
@@ -452,6 +463,10 @@ posix_sock_create(const char *ip, int port,
 	int rc;
 	bool enable_zcopy_user_opts = true;
 	bool enable_zcopy_impl_opts = true;
+#ifdef SPDK_CONFIG_SSL
+	SSL_CTX *ctx = 0;
+	SSL *ssl = 0;
+#endif
 
 	assert(opts != NULL);
 
@@ -489,6 +504,9 @@ retry:
 			continue;
 		}
 		if (type == SPDK_SOCK_CREATE_LISTEN) {
+#ifdef SPDK_CONFIG_SSL
+			/* TODO: init SSL and create new SERVER context here */
+#endif
 			rc = bind(fd, res->ai_addr, res->ai_addrlen);
 			if (rc != 0) {
 				SPDK_ERRLOG("bind() failed at port %d, errno = %d\n", port, errno);
@@ -520,6 +538,9 @@ retry:
 			}
 			enable_zcopy_impl_opts = g_spdk_posix_sock_impl_opts.enable_zerocopy_send_server;
 		} else if (type == SPDK_SOCK_CREATE_CONNECT) {
+#ifdef SPDK_CONFIG_SSL
+			/* TODO: init SSL and create new CLIENT context here */
+#endif
 			rc = connect(fd, res->ai_addr, res->ai_addrlen);
 			if (rc != 0) {
 				SPDK_ERRLOG("connect() failed, errno = %d\n", errno);
@@ -529,6 +550,9 @@ retry:
 				continue;
 			}
 			enable_zcopy_impl_opts = g_spdk_posix_sock_impl_opts.enable_zerocopy_send_client;
+#ifdef SPDK_CONFIG_SSL
+			/* Create new ssl object, Bind it with the socket and begin CLIENT SSL Handshake via SSL_connect() */
+#endif
 		}
 
 		flag = fcntl(fd, F_GETFL);
@@ -618,6 +642,10 @@ posix_sock_accept(struct spdk_sock *_sock)
 		close(fd);
 		return NULL;
 	}
+
+#ifdef SPDK_CONFIG_SSL
+	/* Create new ssl object, Bind it with the socket and do SSL Handshake via SSL_accept() */
+#endif
 
 	return &new_sock->base;
 }
@@ -754,7 +782,11 @@ _sock_flush(struct spdk_sock *sock)
 	{
 		flags = MSG_NOSIGNAL;
 	}
+#ifdef SPDK_CONFIG_SSL
+	/* call SSL_writev() */
+#else
 	rc = sendmsg(psock->fd, &msg, flags);
+#endif
 	if (rc <= 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK || (errno == ENOBUFS && psock->zcopy)) {
 			return 0;
@@ -894,7 +926,11 @@ posix_sock_read(struct spdk_posix_sock *sock)
 		return bytes_avail;
 	}
 
+#ifdef SPDK_CONFIG_SSL
+	/* call SSL_readv() */
+#else
 	bytes_recvd = readv(sock->fd, iov, 2);
+#endif
 
 	assert(sock->pipe_has_data == false);
 
@@ -941,7 +977,11 @@ posix_sock_readv(struct spdk_sock *_sock, struct iovec *iov, int iovcnt)
 			sock->socket_has_data = false;
 			TAILQ_REMOVE(&group->socks_with_data, sock, link);
 		}
+#ifdef SPDK_CONFIG_SSL
+		/* call SSL_readv() */
+#else
 		return readv(sock->fd, iov, iovcnt);
+#endif
 	}
 
 	/* If the socket is not in a group, we must assume it always has
@@ -956,7 +996,11 @@ posix_sock_readv(struct spdk_sock *_sock, struct iovec *iov, int iovcnt)
 
 		if (len >= MIN_SOCK_PIPE_SIZE) {
 			/* TODO: Should this detect if kernel socket is drained? */
+#ifdef SPDK_CONFIG_SSL
+			/* call SSL_readv() */
+#else
 			return readv(sock->fd, iov, iovcnt);
+#endif
 		}
 
 		/* Otherwise, do a big read into our pipe */
@@ -999,7 +1043,11 @@ posix_sock_writev(struct spdk_sock *_sock, struct iovec *iov, int iovcnt)
 		return -1;
 	}
 
+#ifdef SPDK_CONFIG_SSL
+	/* call SSL_writev() */
+#else
 	return writev(sock->fd, iov, iovcnt);
+#endif
 }
 
 static void

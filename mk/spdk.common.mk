@@ -311,6 +311,10 @@ ifneq ($(CONFIG_NVME_CUSE)$(CONFIG_FUSE),nn)
 SYS_LIBS += -lfuse3
 endif
 
+ifeq ($(CONFIG_SSL),y)
+SYS_LIBS += -lssl
+endif
+
 ifeq ($(OS).$(CC_TYPE),Windows.gcc)
 # Include libssp.a for stack-protector and _FORTIFY_SOURCE
 SYS_LIBS += -l:libssp.a

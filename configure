@@ -98,6 +98,8 @@ function usage() {
 	echo " --without-nvme-cuse       No path required."
 	echo " --with-raid5              Build with bdev_raid module RAID5 support."
 	echo " --without-raid5           No path required."
+	echo " --with-ssl                Build with SSL."
+	echo " --without-ssl             No path required."
 	echo " --with-wpdk=DIR           Build using WPDK to provide support for Windows (experimental)."
 	echo " --without-wpdk            The argument must be a directory containing lib and include."
 	echo " --with-usdt               Build with userspace DTrace probes enabled."
@@ -597,6 +599,12 @@ for i in "$@"; do
 		--without-raid5)
 			CONFIG[RAID5]=n
 			;;
+		--with-ssl)
+			CONFIG[SSL]=y
+			;;
+		--without-ssl)
+			CONFIG[SSL]=n
+			;;
 		--with-idxd)
 			CONFIG[IDXD]=y
 			CONFIG[IDXD_KERNEL]=n
@@ -866,6 +874,16 @@ if [[ "${CONFIG[PMDK]}" = "y" ]]; then
 	if ! echo -e '#include <libpmemblk.h>\nint main(void) { return 0; }\n' \
 		| "${BUILD_CMD[@]}" -lpmemblk - 2> /dev/null; then
 		echo "--with-pmdk requires libpmemblk."
+		echo "Please install then re-run this script."
+		exit 1
+	fi
+fi
+
+if [[ "${CONFIG[SSL]}" = "y" ]]; then
+	if ! echo -e '#include <openssl/crypto.h>\n#include <openssl/ssl.h>\n' \
+		'int main(void) { return 0; }\n' \
+		| "${BUILD_CMD[@]}" -lssl - 2> /dev/null; then
+		echo "--with-ssl requires openssl."
 		echo "Please install then re-run this script."
 		exit 1
 	fi
