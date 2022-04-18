@@ -51,6 +51,7 @@
 #include "spdk/pipe.h"
 #include "spdk/sock.h"
 #include "spdk/util.h"
+#include "spdk/string.h"
 #include "spdk_internal/sock.h"
 #include "../sock_kernel.h"
 
@@ -490,7 +491,7 @@ static unsigned int tls_psk_out_of_bound_client_cb(SSL *ssl, const char *hint,
 		SPDK_ERRLOG("PSK ID or Key buffer is not sufficient\n");
 		goto err;
 	}
-	env_strncpy(identity, max_identity_len, PSK_ID, strlen(PSK_ID));
+	spdk_strcpy_pad(identity, PSK_ID, strlen(PSK_ID), 0);
 	memcpy(psk, PSK_KEY, strlen(PSK_KEY));
 	SPDK_NOTICELOG("Provided Out of bound PSK for TLS1.3 client\n");
 
@@ -521,6 +522,110 @@ static SSL_CTX *create_context(const SSL_METHOD *method)
 	SPDK_NOTICELOG("SSL context created\n");
 	return ctx;
 }
+
+static ssize_t
+SSL_readv(SSL *ssl, const struct iovec *iov, int iovcnt)
+{
+	/* Find the total number of bytes to be read.  */
+	size_t bytes = 0;
+	for (int i = 0; i < iovcnt; ++i) {
+		/* Check for ssize_t overflow.  */
+		if (SSIZE_MAX - bytes < iov[i].iov_len) {
+			return -1;
+		}
+		bytes += iov[i].iov_len;
+	}
+
+	/* Allocate a temporary buffer to hold the data.  */
+	char *buffer = (char *) malloc(bytes);
+
+	ERR_clear_error();
+	BIO *rbio = SSL_get_rbio(ssl);
+	if (BIO_eof(rbio)) {
+		return -1;
+	}
+
+	/* Perform read  */
+	ssize_t bytes_read = SSL_read(ssl, buffer, bytes);
+	if (bytes_read <= 0) {
+		int ssl_get_error = SSL_get_error(ssl, bytes_read);
+		switch (ssl_get_error) {
+		case SSL_ERROR_WANT_READ:
+		case SSL_ERROR_WANT_WRITE:
+			/* do nothing */
+			break;
+		default:
+			SPDK_ERRLOG("%ld = SSL_read(%p, '', %ld), %d = SSL_get_error(%p, %ld)\n", bytes_read,
+				    ssl, bytes, ssl_get_error, ssl, bytes_read);
+			break;
+		}
+	}
+
+	/* Copy the data into BUFFER.  */
+	bytes = bytes_read;
+	register char *bp = buffer;
+	for (int i = 0; i < iovcnt; ++i) {
+		size_t copy = spdk_min(iov[i].iov_len, bytes);
+		(void) memcpy((void *) iov[i].iov_base, (void *) bp, copy);
+		bp += copy;
+		bytes -= copy;
+		if (bytes == 0) {
+			break;
+		}
+	}
+
+	free(buffer);
+	return bytes_read;
+}
+
+static ssize_t
+SSL_writev(SSL *ssl, struct iovec *iov, int iovcnt)
+{
+	/* Find the total number of bytes to be written.  */
+	size_t bytes = 0;
+	for (int i = 0; i < iovcnt; ++i) {
+		/* Check for ssize_t overflow.  */
+		if (SSIZE_MAX - bytes < iov[i].iov_len) {
+			return -1;
+		}
+		bytes += iov[i].iov_len;
+	}
+
+	/* Allocate a temporary buffer to hold the data.  */
+	char *buffer = (char *) malloc(bytes);
+
+	/* Copy the data into BUFFER.  */
+	size_t to_copy = bytes;
+	register char *bp = buffer;
+	for (int i = 0; i < iovcnt; ++i) {
+		size_t copy = spdk_min(iov[i].iov_len, to_copy);
+		memcpy((void *) bp, (void *) iov[i].iov_base, copy);
+		bp += copy;
+		to_copy -= copy;
+		if (to_copy == 0) {
+			break;
+		}
+	}
+
+	/* Perform write  */
+	size_t rc = 0;
+	while ((rc = SSL_write(ssl, buffer, bytes)) <= 0) {
+		int ssl_get_error = SSL_get_error(ssl, rc);
+		switch (ssl_get_error) {
+		case SSL_ERROR_WANT_READ:
+		case SSL_ERROR_WANT_WRITE:
+			/* do nothing */
+			break;
+		default:
+			SPDK_ERRLOG("%ld = SSL_write(%p, '', %ld), %d = SSL_get_error(%p, %ld)\n", rc,
+				    ssl, bytes, ssl_get_error, ssl, rc);
+			break;
+		}
+	}
+	free(buffer);
+	return rc;
+}
+
 #endif
 
 static struct spdk_sock *
@@ -947,7 +1052,7 @@ _sock_flush(struct spdk_sock *sock)
 		flags = MSG_NOSIGNAL;
 	}
 #ifdef SPDK_CONFIG_SSL
-	/* call SSL_writev() */
+	rc = SSL_writev(psock->ssl, iovs, iovcnt);
 #else
 	rc = sendmsg(psock->fd, &msg, flags);
 #endif
@@ -1091,7 +1196,7 @@ posix_sock_read(struct spdk_posix_sock *sock)
 	}
 
 #ifdef SPDK_CONFIG_SSL
-	/* call SSL_readv() */
+	bytes_recvd = SSL_readv(sock->ssl, iov, 2);
 #else
 	bytes_recvd = readv(sock->fd, iov, 2);
 #endif
@@ -1142,7 +1247,7 @@ posix_sock_readv(struct spdk_sock *_sock, struct iovec *iov, int iovcnt)
 			TAILQ_REMOVE(&group->socks_with_data, sock, link);
 		}
 #ifdef SPDK_CONFIG_SSL
-		/* call SSL_readv() */
+		return SSL_readv(sock->ssl, iov, iovcnt);
 #else
 		return readv(sock->fd, iov, iovcnt);
 #endif
@@ -1161,7 +1266,7 @@ posix_sock_readv(struct spdk_sock *_sock, struct iovec *iov, int iovcnt)
 		if (len >= MIN_SOCK_PIPE_SIZE) {
 			/* TODO: Should this detect if kernel socket is drained? */
 #ifdef SPDK_CONFIG_SSL
-			/* call SSL_readv() */
+			return SSL_readv(sock->ssl, iov, iovcnt);
 #else
 			return readv(sock->fd, iov, iovcnt);
 #endif
@@ -1208,7 +1313,7 @@ posix_sock_writev(struct spdk_sock *_sock, struct iovec *iov, int iovcnt)
 	}
 
 #ifdef SPDK_CONFIG_SSL
-	/* call SSL_writev() */
+	return SSL_writev(sock->ssl, iov, iovcnt);
 #else
 	return writev(sock->fd, iov, iovcnt);
 #endif
