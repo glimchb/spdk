@@ -449,6 +449,28 @@ posix_fd_create(struct addrinfo *res, struct spdk_sock_opts *opts)
 	return fd;
 }
 
+#ifdef SPDK_CONFIG_SSL
+static SSL_CTX *
+posix_sock_create_ssl_context(const SSL_METHOD *method)
+{
+	SSL_library_init();
+	OpenSSL_add_all_algorithms();
+	SSL_load_error_strings();
+	/* Produce a SSL CTX in SSL V2 and V3 standards compliant way */
+	SSL_CTX *ctx = SSL_CTX_new(method);
+	if (!ctx) {
+		SPDK_ERRLOG("posix_sock_create_ssl_context() failed, errno = %d\n", errno);
+		return NULL;
+	}
+	SSL_CTX_set_cipher_list(ctx, "TLS1_3_RFC_AES_128_GCM_SHA256");
+	SSL_CTX_set_ecdh_auto(ctx, 1);
+	EVP_add_cipher(EVP_aes_128_gcm());
+	/* LoadCertificates(mExtSettings->ssl_ctx, "newreq.pem", "key.pem"); */
+	SPDK_NOTICELOG("SSL context created\n");
+	return ctx;
+}
+#endif
+
 static struct spdk_sock *
 posix_sock_create(const char *ip, int port,
 		  enum posix_sock_create_type type,
@@ -505,7 +527,13 @@ retry:
 		}
 		if (type == SPDK_SOCK_CREATE_LISTEN) {
 #ifdef SPDK_CONFIG_SSL
-			/* TODO: init SSL and create new SERVER context here */
+			ctx = posix_sock_create_ssl_context(TLS_server_method());
+			if (!ctx) {
+				SPDK_ERRLOG("posix_sock_create_ssl_context() failed, errno = %d\n", errno);
+				close(fd);
+				fd = -1;
+				break;
+			}
 #endif
 			rc = bind(fd, res->ai_addr, res->ai_addrlen);
 			if (rc != 0) {
@@ -539,7 +567,13 @@ retry:
 			enable_zcopy_impl_opts = g_spdk_posix_sock_impl_opts.enable_zerocopy_send_server;
 		} else if (type == SPDK_SOCK_CREATE_CONNECT) {
 #ifdef SPDK_CONFIG_SSL
-			/* TODO: init SSL and create new CLIENT context here */
+			ctx = posix_sock_create_ssl_context(TLS_client_method());
+			if (!ctx) {
+				SPDK_ERRLOG("posix_sock_create_ssl_context() failed, errno = %d\n", errno);
+				close(fd);
+				fd = -1;
+				break;
+			}
 #endif
 			rc = connect(fd, res->ai_addr, res->ai_addrlen);
 			if (rc != 0) {
@@ -579,6 +613,12 @@ retry:
 		close(fd);
 		return NULL;
 	}
+
+#ifdef SPDK_CONFIG_SSL
+	if (ctx) {
+		sock->ctx = ctx;
+	}
+#endif
 
 	return &sock->base;
 }
