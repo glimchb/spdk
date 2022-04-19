@@ -51,6 +51,7 @@
 #include "spdk/pipe.h"
 #include "spdk/sock.h"
 #include "spdk/util.h"
+#include "spdk/string.h"
 #include "spdk_internal/sock.h"
 #include "../sock_kernel.h"
 
@@ -450,6 +451,58 @@ posix_fd_create(struct addrinfo *res, struct spdk_sock_opts *opts)
 }
 
 #ifdef SPDK_CONFIG_SSL
+
+#define PSK_ID  "nqn.2014-08.org.nvmexpress:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
+#define PSK_KEY "1234567890ABCDEF"
+
+static unsigned int
+posix_sock_tls_psk_server_cb(SSL *ssl,
+		const char *id,
+		unsigned char *psk,
+		unsigned int max_psk_len)
+{
+	SPDK_NOTICELOG("Length of Client's PSK ID %lu\n", strlen(PSK_ID));
+	if (strcmp(PSK_ID, id) != 0) {
+		SPDK_ERRLOG("Unknown Client's PSK ID\n");
+		goto err;
+	}
+
+	SPDK_NOTICELOG("Length of Client's PSK KEY %u\n", max_psk_len);
+	if (strlen(PSK_KEY) > max_psk_len) {
+		SPDK_ERRLOG("Insufficient buffer size to copy PSK_KEY\n");
+		goto err;
+	}
+
+	memcpy(psk, PSK_KEY, strlen(PSK_KEY));
+
+	return strlen(PSK_KEY);
+
+err:
+	return 0;
+}
+
+static unsigned int
+posix_sock_tls_psk_client_cb(SSL *ssl, const char *hint,
+		char *identity,
+		unsigned int max_identity_len,
+		unsigned char *psk,
+		unsigned int max_psk_len)
+{
+	if ((strlen(PSK_ID) + 1 > max_identity_len)
+	    || (strlen(PSK_KEY) > max_psk_len)) {
+		SPDK_ERRLOG("PSK ID or Key buffer is not sufficient\n");
+		goto err;
+	}
+	spdk_strcpy_pad(identity, PSK_ID, strlen(PSK_ID), 0);
+	memcpy(psk, PSK_KEY, strlen(PSK_KEY));
+	SPDK_NOTICELOG("Provided Out of bound PSK for TLS1.3 client\n");
+
+	return strlen(PSK_KEY);
+
+err:
+	return 0;
+}
+
 static SSL_CTX *
 posix_sock_create_ssl_context(const SSL_METHOD *method)
 {
@@ -469,6 +522,79 @@ posix_sock_create_ssl_context(const SSL_METHOD *method)
 	SPDK_NOTICELOG("SSL context created\n");
 	return ctx;
 }
+
+static SSL *ssl_sock_connect_loop(SSL_CTX *ctx, int fd)
+{
+	int rc;
+
+	SPDK_NOTICELOG("%s:%s:%d SSL_new\n", __func__, __FILE__, __LINE__);
+	SSL *ssl = SSL_new(ctx);
+	if (!ssl) {
+		SPDK_ERRLOG("SSL_new() failed, errno = %d\n", errno);
+		return NULL;
+	}
+	SSL_set_fd(ssl, fd);
+	SSL_set_psk_client_callback(ssl, posix_sock_tls_psk_client_cb);
+	SPDK_NOTICELOG("SSL object creation finished: %p\n", ssl);
+	SPDK_NOTICELOG("%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
+	while ((rc = SSL_connect(ssl)) != 1) {
+		SPDK_NOTICELOG("%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
+		int ssl_get_error = SSL_get_error(ssl, rc);
+		SPDK_ERRLOG("SSL_connect failed %d = SSL_connect(%p), %d = SSL_get_error(%p, %d)\n", rc, ssl,
+			    ssl_get_error, ssl, rc);
+		switch (ssl_get_error) {
+		case SSL_ERROR_WANT_READ:
+		case SSL_ERROR_WANT_WRITE:
+			continue;
+		default:
+			break;
+		}
+		SPDK_ERRLOG("SSL_connect() failed, errno = %d\n", errno);
+		SSL_free(ssl);
+		return NULL;
+	}
+	SPDK_NOTICELOG("%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
+	SPDK_NOTICELOG("SSL_connect succeeded\n");
+	SPDK_NOTICELOG("Negotiated Cipher suite:%s\n", SSL_CIPHER_get_name(SSL_get_current_cipher(ssl)));
+	return ssl;
+}
+
+static SSL *ssl_sock_accept_loop(SSL_CTX *ctx, int fd)
+{
+	int rc;
+
+	SPDK_NOTICELOG("%s:%s:%d SSL_new\n", __func__, __FILE__, __LINE__);
+	SSL *ssl = SSL_new(ctx);
+	if (!ssl) {
+		SPDK_ERRLOG("SSL_new() failed, errno = %d\n", errno);
+		return NULL;
+	}
+	SSL_set_fd(ssl, fd);
+	SSL_set_psk_server_callback(ssl, posix_sock_tls_psk_server_cb);
+	SPDK_NOTICELOG("SSL object creation finished: %p\n", ssl);
+	SPDK_NOTICELOG("%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
+	while ((rc = SSL_accept(ssl)) != 1) {
+		SPDK_NOTICELOG("%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
+		int ssl_get_error = SSL_get_error(ssl, rc);
+		SPDK_ERRLOG("SSL_accept failed %d = SSL_accept(%p), %d = SSL_get_error(%p, %d)\n", rc, ssl,
+			    ssl_get_error, ssl, rc);
+		switch (ssl_get_error) {
+		case SSL_ERROR_WANT_READ:
+		case SSL_ERROR_WANT_WRITE:
+			continue;
+		default:
+			break;
+		}
+		SPDK_ERRLOG("SSL_accept() failed, errno = %d\n", errno);
+		SSL_free(ssl);
+		return NULL;
+	}
+	SPDK_NOTICELOG("%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
+	SPDK_NOTICELOG("SSL_accept succeeded\n");
+	SPDK_NOTICELOG("Negotiated Cipher suite:%s\n", SSL_CIPHER_get_name(SSL_get_current_cipher(ssl)));
+	return ssl;
+}
+
 #endif
 
 static struct spdk_sock *
@@ -585,7 +711,14 @@ retry:
 			}
 			enable_zcopy_impl_opts = g_spdk_posix_sock_impl_opts.enable_zerocopy_send_client;
 #ifdef SPDK_CONFIG_SSL
-			/* Create new ssl object, Bind it with the socket and begin CLIENT SSL Handshake via SSL_connect() */
+			ssl = ssl_sock_connect_loop(ctx, fd);
+			if (!ssl) {
+				SPDK_ERRLOG("ssl_sock_connect_loop() failed, errno = %d\n", errno);
+				close(fd);
+				fd = -1;
+				/* SSL_CTX_free(ctx); */
+				return NULL;
+			}
 #endif
 		}
 
@@ -617,6 +750,10 @@ retry:
 #ifdef SPDK_CONFIG_SSL
 	if (ctx) {
 		sock->ctx = ctx;
+	}
+
+	if (ssl) {
+		sock->ssl = ssl;
 	}
 #endif
 
@@ -684,7 +821,15 @@ posix_sock_accept(struct spdk_sock *_sock)
 	}
 
 #ifdef SPDK_CONFIG_SSL
-	/* Create new ssl object, Bind it with the socket and do SSL Handshake via SSL_accept() */
+	SSL *ssl = ssl_sock_accept_loop(sock->ctx, fd);
+	if (!ssl) {
+		SPDK_ERRLOG("ssl_sock_accept_loop() failed, errno = %d\n", errno);
+		close(fd);
+		/* SSL_CTX_free(sock->ctx); */
+		return NULL;
+	}
+	new_sock->ctx = sock->ctx;
+	new_sock->ssl = ssl;
 #endif
 
 	return &new_sock->base;
