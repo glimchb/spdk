@@ -55,6 +55,8 @@
 #include "spdk_internal/sock.h"
 #include "../sock_kernel.h"
 
+# define SPDK_CONFIG_SSL (1)
+
 #ifdef SPDK_CONFIG_SSL
 #include "openssl/crypto.h"
 #include "openssl/err.h"
