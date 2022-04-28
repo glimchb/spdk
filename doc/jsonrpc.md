@@ -9197,7 +9197,8 @@ Example response:
     "enable_quickack": true,
     "enable_placement_id": 0,
     "enable_zerocopy_send_server": true,
-    "enable_zerocopy_send_client": false
+    "enable_zerocopy_send_client": false,
+    "psk_key": "1234567890ABCDEF"
   }
 }
 ~~~
@@ -9218,6 +9219,7 @@ enable_quick_ack            | Optional | boolean     | Enable or disable quick A
 enable_placement_id         | Optional | number      | Enable or disable placement_id. 0:disable,1:incoming_napi,2:incoming_cpu
 enable_zerocopy_send_server | Optional | boolean     | Enable or disable zero copy on send for server sockets
 enable_zerocopy_send_client | Optional | boolean     | Enable or disable zero copy on send for client sockets
+psk_key                     | Optional | string      | PSK key in hexadecimal digits, e.g. 1234567890ABCDEF
 
 #### Response
 
@@ -9240,7 +9242,8 @@ Example request:
     "enable_quick_ack": false,
     "enable_placement_id": 0,
     "enable_zerocopy_send_server": true,
-    "enable_zerocopy_send_client": false
+    "enable_zerocopy_send_client": false,
+    "psk_key": "1234567890ABCDEF"
   }
 }
 ~~~
