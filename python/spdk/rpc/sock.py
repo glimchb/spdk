@@ -20,7 +20,8 @@ def sock_impl_set_options(client,
                           enable_placement_id=None,
                           enable_zerocopy_send_server=None,
                           enable_zerocopy_send_client=None,
-                          zerocopy_threshold=None):
+                          zerocopy_threshold=None,
+                          psk_key=None):
     """Set parameters for the socket layer implementation.
 
     Args:
@@ -33,6 +34,7 @@ def sock_impl_set_options(client,
         enable_zerocopy_send_server: enable or disable zerocopy on send for server sockets(optional)
         enable_zerocopy_send_client: enable or disable zerocopy on send for client sockets(optional)
         zerocopy_threshold: set zerocopy_threshold in bytes(optional)
+        psk_key: set psk_key(optional)
     """
     params = {}
 
@@ -51,8 +53,10 @@ def sock_impl_set_options(client,
         params['enable_zerocopy_send_server'] = enable_zerocopy_send_server
     if enable_zerocopy_send_client is not None:
         params['enable_zerocopy_send_client'] = enable_zerocopy_send_client
-    if enable_dynamic_zerocopy is not None:
+    if zerocopy_threshold is not None:
         params['zerocopy_threshold'] = zerocopy_threshold
+    if psk_key is not None:
+        params['psk_key'] = psk_key
 
     return client.call('sock_impl_set_options', params)
 
