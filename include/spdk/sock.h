@@ -120,6 +120,16 @@ struct spdk_sock_impl_opts {
 	 * threshold may be sent without zerocopy flag set.
 	 */
 	uint32_t zerocopy_threshold;
+
+	/**
+	 * Set default PSK key for SSL socket.
+	 */
+	char *psk_key;
+
+	/**
+	 * Set default PSK ID for SSL socket.
+	 */
+	char *psk_identity;
 };
 
 /**

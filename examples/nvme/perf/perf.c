@@ -323,6 +323,41 @@ perf_set_sock_zcopy(const char *impl_name, bool enable)
 }
 
 static void
+perf_set_sock_psk(const char *impl_name, char *psk_key, char *psk_id)
+{
+	struct spdk_sock_impl_opts sock_opts = {};
+	size_t opts_size = sizeof(sock_opts);
+	int rc;
+
+	rc = spdk_sock_impl_get_opts(impl_name, &sock_opts, &opts_size);
+	if (rc != 0) {
+		if (errno == EINVAL) {
+			fprintf(stderr, "Unknown sock impl %s\n", impl_name);
+		} else {
+			fprintf(stderr, "Failed to get opts for sock impl %s: error %d (%s)\n", impl_name, errno,
+				strerror(errno));
+		}
+		return;
+	}
+
+	if (opts_size != sizeof(sock_opts)) {
+		fprintf(stderr, "Warning: sock_opts size mismatch. Expected %zu, received %zu\n",
+			sizeof(sock_opts), opts_size);
+		opts_size = sizeof(sock_opts);
+	}
+
+	sock_opts.psk_key = psk_key;
+	sock_opts.psk_identity = psk_id;
+	sock_opts.tls_version = 13;
+	sock_opts.enable_ktls = false;
+
+	if (spdk_sock_impl_set_opts(impl_name, &sock_opts, opts_size)) {
+		fprintf(stderr, "Failed to set psk_key=%s,psk_id=%s  for sock impl %s: error %d (%s)\n",
+			psk_key, psk_id, impl_name, errno, strerror(errno));
+	}
+}
+
+static void
 nvme_perf_reset_sgl(void *ref, uint32_t sgl_offset)
 {
 	struct iovec *iov;
@@ -2459,6 +2494,9 @@ parse_args(int argc, char **argv, struct spdk_env_opts *env_opts)
 				fprintf(stderr, "Failed to set sock impl %s, err %d (%s)\n", optarg, errno, strerror(errno));
 				return 1;
 			}
+			/* TODO: This should be a separate option */
+			perf_set_sock_psk(optarg, "1234567890ABCDEF",
+					  "nqn.2014-08.org.nvmexpress:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6");
 			break;
 		case PERF_TRANSPORT_STATISTICS:
 			g_dump_transport_stats = true;

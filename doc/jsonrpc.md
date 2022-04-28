@@ -9433,7 +9433,9 @@ Example response:
     "enable_placement_id": 0,
     "enable_zerocopy_send_server": true,
     "enable_zerocopy_send_client": false,
-    "zerocopy_threshold": 0
+    "zerocopy_threshold": 0,
+    "psk_key": "1234567890ABCDEF",
+    "psk_identity": "nqn.2014-08.org.nvmexpress:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
   }
 }
 ~~~
@@ -9456,6 +9458,8 @@ enable_zerocopy_send_server | Optional | boolean     | Enable or disable zero co
 enable_zerocopy_send_client | Optional | boolean     | Enable or disable zero copy on send for client sockets
 zerocopy_threshold          | Optional | number      | Set zerocopy_threshold in bytes. A consecutive sequence of requests' iovecs
 that fall below this threshold may be sent without zerocopy flag set
+psk_key                     | Optional | string      | Default PSK KEY in hexadecimal digits, e.g. 1234567890ABCDEF
+psk_identity                | Optional | string      | Default PSK ID, e.g. nqn.2014-08.org.nvmexpress:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6
 
 #### Response
 
@@ -9479,7 +9483,9 @@ Example request:
     "enable_placement_id": 0,
     "enable_zerocopy_send_server": true,
     "enable_zerocopy_send_client": false,
-    "zerocopy_threshold": 10240
+    "zerocopy_threshold": 10240,
+    "psk_key": "1234567890ABCDEF",
+    "psk_identity": "nqn.2014-08.org.nvmexpress:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
   }
 }
 ~~~

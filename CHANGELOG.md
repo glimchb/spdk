@@ -5,7 +5,13 @@
 ### sock
 
 Added new `ssl` based socket implementation, the code is located in module/sock/posix.
-For now we are using hard-coded PSK and only support TLS 1.3
+
+The `psk_key` and `psk_identity` fields were added in the `struct spdk_sock_impl_opts`
+to set default PSK KEY and ID for SSL for the POSIX sock module.
+
+### rpc
+
+New optional parameters `psk_key` and `psk_identity` were added to the `sock_impl_set_options` RPC.
 
 ### blobstore
 

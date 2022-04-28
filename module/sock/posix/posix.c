@@ -76,7 +76,9 @@ static struct spdk_sock_impl_opts g_spdk_posix_sock_impl_opts = {
 	.enable_placement_id = PLACEMENT_NONE,
 	.enable_zerocopy_send_server = true,
 	.enable_zerocopy_send_client = false,
-	.zerocopy_threshold = 0
+	.zerocopy_threshold = 0,
+	.psk_key = NULL,
+	.psk_identity = NULL
 };
 
 static struct spdk_sock_map g_map = {
@@ -419,9 +421,6 @@ posix_fd_create(struct addrinfo *res, struct spdk_sock_opts *opts)
 	return fd;
 }
 
-#define PSK_ID  "nqn.2014-08.org.nvmexpress:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
-#define PSK_KEY "1234567890ABCDEF"
-
 static unsigned int
 posix_sock_tls_psk_server_cb(SSL *ssl,
 			     const char *id,
@@ -429,26 +428,32 @@ posix_sock_tls_psk_server_cb(SSL *ssl,
 			     unsigned int max_psk_len)
 {
 	long key_len;
-	unsigned char *default_psk;
+	unsigned char *psk_key;
+	unsigned char *psk_id = g_spdk_posix_sock_impl_opts.psk_identity;
 
-	if (PSK_KEY == NULL) {
-		SPDK_ERRLOG("PSK is not set\n");
+	if (g_spdk_posix_sock_impl_opts.psk_key == NULL) {
+		SPDK_ERRLOG("PSK KEY is not set\n");
 		goto err;
 	}
-	SPDK_DEBUGLOG(sock_posix, "Length of Client's PSK ID %lu\n", strlen(PSK_ID));
+	if (g_spdk_posix_sock_impl_opts.psk_identity == NULL) {
+		SPDK_ERRLOG("PSK ID is not set\n");
+		goto err;
+	}
+
+	SPDK_DEBUGLOG(sock_posix, "Length of Client's PSK ID %lu\n", strlen(psk_id));
 	if (id == NULL) {
 		SPDK_ERRLOG("Received empty PSK ID\n");
 		goto err;
 	}
 	SPDK_DEBUGLOG(sock_posix,  "Received PSK ID '%s'\n", id);
-	if (strcmp(PSK_ID, id) != 0) {
+	if (strcmp(psk_id, id) != 0) {
 		SPDK_ERRLOG("Unknown Client's PSK ID\n");
 		goto err;
 	}
 
 	SPDK_DEBUGLOG(sock_posix, "Length of Client's PSK KEY %u\n", max_psk_len);
-	default_psk = OPENSSL_hexstr2buf(PSK_KEY, &key_len);
-	if (default_psk == NULL) {
+	psk_key = OPENSSL_hexstr2buf(g_spdk_posix_sock_impl_opts.psk_key, &key_len);
+	if (psk_key == NULL) {
 		SPDK_ERRLOG("Could not unhexlify PSK\n");
 		goto err;
 	}
@@ -457,7 +462,7 @@ posix_sock_tls_psk_server_cb(SSL *ssl,
 		goto err;
 	}
 
-	memcpy(psk, default_psk, key_len);
+	memcpy(psk, psk_key, key_len);
 
 	return key_len;
 
@@ -473,30 +478,31 @@ posix_sock_tls_psk_client_cb(SSL *ssl, const char *hint,
 			     unsigned int max_psk_len)
 {
 	long key_len;
-	unsigned char *default_psk;
+	unsigned char *psk_key;
+	unsigned char *psk_id = g_spdk_posix_sock_impl_opts.psk_identity;
 
 	if (hint) {
 		SPDK_DEBUGLOG(sock_posix,  "Received PSK identity hint '%s'\n", hint);
 	}
 
-	if (PSK_KEY == NULL) {
+	if (g_spdk_posix_sock_impl_opts.psk_key == NULL) {
 		SPDK_ERRLOG("PSK is not set\n");
 		goto err;
 	}
-	default_psk = OPENSSL_hexstr2buf(PSK_KEY, &key_len);
-	if (default_psk == NULL) {
+	psk_key = OPENSSL_hexstr2buf(g_spdk_posix_sock_impl_opts.psk_key, &key_len);
+	if (psk_key == NULL) {
 		SPDK_ERRLOG("Could not unhexlify PSK\n");
 		goto err;
 	}
-	if ((strlen(PSK_ID) + 1 > max_identity_len)
+	if ((strlen(psk_id) + 1 > max_identity_len)
 	    || (key_len > max_psk_len)) {
 		SPDK_ERRLOG("PSK ID or Key buffer is not sufficient\n");
 		goto err;
 	}
-	spdk_strcpy_pad(identity, PSK_ID, strlen(PSK_ID), 0);
+	spdk_strcpy_pad(identity, psk_id, strlen(psk_id), 0);
 	SPDK_DEBUGLOG(sock_posix, "Sending PSK identity '%s'\n", identity);
 
-	memcpy(psk, default_psk, key_len);
+	memcpy(psk, psk_key, key_len);
 	SPDK_DEBUGLOG(sock_posix, "Provided out-of-band (OOB) PSK for TLS1.3 client\n");
 
 	return key_len;
@@ -1854,6 +1860,8 @@ posix_sock_impl_get_opts(struct spdk_sock_impl_opts *opts, size_t *len)
 	GET_FIELD(enable_zerocopy_send_server);
 	GET_FIELD(enable_zerocopy_send_client);
 	GET_FIELD(zerocopy_threshold);
+	GET_FIELD(psk_key);
+	GET_FIELD(psk_identity);
 
 #undef GET_FIELD
 #undef FIELD_OK
@@ -1887,6 +1895,8 @@ posix_sock_impl_set_opts(const struct spdk_sock_impl_opts *opts, size_t len)
 	SET_FIELD(enable_zerocopy_send_server);
 	SET_FIELD(enable_zerocopy_send_client);
 	SET_FIELD(zerocopy_threshold);
+	SET_FIELD(psk_key);
+	SET_FIELD(psk_identity);
 
 #undef SET_FIELD
 #undef FIELD_OK

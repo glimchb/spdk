@@ -95,7 +95,9 @@ static struct spdk_sock_impl_opts g_spdk_uring_sock_impl_opts = {
 	.enable_placement_id = PLACEMENT_NONE,
 	.enable_zerocopy_send_server = false,
 	.enable_zerocopy_send_client = false,
-	.zerocopy_threshold = 0
+	.zerocopy_threshold = 0,
+	.psk_key = NULL,
+	.psk_identity = NULL
 };
 
 static struct spdk_sock_map g_map = {
@@ -1529,6 +1531,8 @@ uring_sock_impl_get_opts(struct spdk_sock_impl_opts *opts, size_t *len)
 	GET_FIELD(enable_zerocopy_send_server);
 	GET_FIELD(enable_zerocopy_send_client);
 	GET_FIELD(zerocopy_threshold);
+	GET_FIELD(psk_key);
+	GET_FIELD(psk_identity);
 
 #undef GET_FIELD
 #undef FIELD_OK
@@ -1561,6 +1565,8 @@ uring_sock_impl_set_opts(const struct spdk_sock_impl_opts *opts, size_t len)
 	SET_FIELD(enable_zerocopy_send_server);
 	SET_FIELD(enable_zerocopy_send_client);
 	SET_FIELD(zerocopy_threshold);
+	SET_FIELD(psk_key);
+	SET_FIELD(psk_identity);
 
 #undef SET_FIELD
 #undef FIELD_OK
