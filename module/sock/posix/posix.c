@@ -499,20 +499,21 @@ err:
 }
 
 static SSL_CTX *
-posix_sock_create_ssl_context(const SSL_METHOD *method)
+posix_sock_create_ssl_context(const SSL_METHOD *method, const char *cipher)
 {
 	SSL_CTX *ctx;
 
 	SSL_library_init();
 	OpenSSL_add_all_algorithms();
 	SSL_load_error_strings();
+
 	/* Produce a SSL CTX in SSL V2 and V3 standards compliant way */
 	ctx = SSL_CTX_new(method);
 	if (!ctx) {
 		SPDK_ERRLOG("SSL_CTX_new() failed, errno = %d\n", errno);
 		return NULL;
 	}
-	SSL_CTX_set_cipher_list(ctx, "TLS1_3_RFC_AES_128_GCM_SHA256");
+	SSL_CTX_set_cipher_list(ctx, cipher);
 	SSL_CTX_set_ecdh_auto(ctx, 1);
 	EVP_add_cipher(EVP_aes_128_gcm());
 	SPDK_DEBUGLOG(sock_posix, "SSL context created\n");
@@ -670,7 +671,11 @@ retry:
 		}
 		if (type == SPDK_SOCK_CREATE_LISTEN) {
 			if (enable_ssl) {
-				ctx = posix_sock_create_ssl_context(TLS_server_method());
+				bool enable_ssl_12 = true;
+				const SSL_METHOD *method = enable_ssl_12 ? TLSv1_2_server_method() : TLS_server_method() ;
+				const char *cipher = enable_ssl_12 ? "ECDHE-RSA-AES128-GCM-SHA256" : "TLS1_3_RFC_AES_128_GCM_SHA256"
+						     ;
+				ctx = posix_sock_create_ssl_context(method, cipher);
 				if (!ctx) {
 					SPDK_ERRLOG("posix_sock_create_ssl_context() failed, errno = %d\n", errno);
 					close(fd);
@@ -719,7 +724,11 @@ retry:
 			}
 			enable_zcopy_impl_opts = g_spdk_posix_sock_impl_opts.enable_zerocopy_send_client;
 			if (enable_ssl) {
-				ctx = posix_sock_create_ssl_context(TLS_client_method());
+				bool enable_ssl_12 = true;
+				const SSL_METHOD *method = enable_ssl_12 ? TLSv1_2_client_method() : TLS_client_method() ;
+				const char *cipher = enable_ssl_12 ? "ECDHE-RSA-AES128-GCM-SHA256" : "TLS1_3_RFC_AES_128_GCM_SHA256"
+						     ;
+				ctx = posix_sock_create_ssl_context(method, cipher);
 				if (!ctx) {
 					SPDK_ERRLOG("posix_sock_create_ssl_context() failed, errno = %d\n", errno);
 					close(fd);
