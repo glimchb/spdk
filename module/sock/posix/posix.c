@@ -104,7 +104,8 @@ static struct spdk_sock_impl_opts g_spdk_posix_sock_impl_opts = {
 	.enable_placement_id = PLACEMENT_NONE,
 	.enable_zerocopy_send_server = true,
 	.enable_zerocopy_send_client = false,
-	.zerocopy_threshold = 0
+	.zerocopy_threshold = 0,
+	.default_psk = NULL
 };
 
 static struct spdk_sock_map g_map = {
@@ -448,7 +449,6 @@ posix_fd_create(struct addrinfo *res, struct spdk_sock_opts *opts)
 }
 
 #define PSK_ID  "nqn.2014-08.org.nvmexpress:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
-#define PSK_KEY "1234567890ABCDEF"
 
 static unsigned int
 posix_sock_tls_psk_server_cb(SSL *ssl,
@@ -456,6 +456,8 @@ posix_sock_tls_psk_server_cb(SSL *ssl,
 			     unsigned char *psk,
 			     unsigned int max_psk_len)
 {
+	unsigned char *default_psk = g_spdk_posix_sock_impl_opts.default_psk;
+
 	SPDK_DEBUGLOG(sock_posix, "Length of Client's PSK ID %lu\n", strlen(PSK_ID));
 	if (strcmp(PSK_ID, id) != 0) {
 		SPDK_ERRLOG("Unknown Client's PSK ID\n");
@@ -463,14 +465,18 @@ posix_sock_tls_psk_server_cb(SSL *ssl,
 	}
 
 	SPDK_DEBUGLOG(sock_posix, "Length of Client's PSK KEY %u\n", max_psk_len);
-	if (strlen(PSK_KEY) > max_psk_len) {
-		SPDK_ERRLOG("Insufficient buffer size to copy PSK_KEY\n");
+	if (default_psk == NULL) {
+		SPDK_ERRLOG("PSK is not set\n");
+		goto err;
+	}
+	if (strlen(default_psk) > max_psk_len) {
+		SPDK_ERRLOG("Insufficient buffer size to copy PSK\n");
 		goto err;
 	}
 
-	memcpy(psk, PSK_KEY, strlen(PSK_KEY));
+	memcpy(psk, default_psk, strlen(default_psk));
 
-	return strlen(PSK_KEY);
+	return strlen(default_psk);
 
 err:
 	return 0;
@@ -483,16 +489,26 @@ posix_sock_tls_psk_client_cb(SSL *ssl, const char *hint,
 			     unsigned char *psk,
 			     unsigned int max_psk_len)
 {
+	unsigned char *default_psk = g_spdk_posix_sock_impl_opts.default_psk;
+
+	if (hint) {
+		SPDK_DEBUGLOG(sock_posix,  "Received PSK identity hint '%s'\n", hint);
+	}
+
+	if (default_psk == NULL) {
+		SPDK_ERRLOG("PSK is not set\n");
+		goto err;
+	}
 	if ((strlen(PSK_ID) + 1 > max_identity_len)
-	    || (strlen(PSK_KEY) > max_psk_len)) {
+	    || (strlen(default_psk) > max_psk_len)) {
 		SPDK_ERRLOG("PSK ID or Key buffer is not sufficient\n");
 		goto err;
 	}
 	spdk_strcpy_pad(identity, PSK_ID, strlen(PSK_ID), 0);
-	memcpy(psk, PSK_KEY, strlen(PSK_KEY));
+	memcpy(psk, default_psk, strlen(default_psk));
 	SPDK_DEBUGLOG(sock_posix, "Provided out-of-band (OOB) PSK for TLS1.3 client\n");
 
-	return strlen(PSK_KEY);
+	return strlen(default_psk);
 
 err:
 	return 0;
@@ -1843,6 +1859,7 @@ posix_sock_impl_get_opts(struct spdk_sock_impl_opts *opts, size_t *len)
 	GET_FIELD(enable_zerocopy_send_server);
 	GET_FIELD(enable_zerocopy_send_client);
 	GET_FIELD(zerocopy_threshold);
+	GET_FIELD(default_psk);
 
 #undef GET_FIELD
 #undef FIELD_OK
@@ -1876,6 +1893,7 @@ posix_sock_impl_set_opts(const struct spdk_sock_impl_opts *opts, size_t len)
 	SET_FIELD(enable_zerocopy_send_server);
 	SET_FIELD(enable_zerocopy_send_client);
 	SET_FIELD(zerocopy_threshold);
+	SET_FIELD(default_psk);
 
 #undef SET_FIELD
 #undef FIELD_OK

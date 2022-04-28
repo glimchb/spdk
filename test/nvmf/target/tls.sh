@@ -17,6 +17,14 @@ if [ "$TEST_TRANSPORT" != tcp ]; then
 fi
 
 $rpc_py sock_set_default_impl -i ssl
+$rpc_py sock_impl_get_options -i ssl
+$rpc_py sock_impl_set_options -i ssl --default-psk 4321DEADBEEF1234
+psk=$($rpc_py sock_impl_get_options -i ssl | jq -r .default_psk)
+if [[  "$psk" != "4321DEADBEEF1234" ]]; then
+	echo "PSK was not set correctly $psk != 4321DEADBEEF1234"
+	exit 1
+fi
+
 $rpc_py framework_start_init
 $rpc_py nvmf_create_transport $NVMF_TRANSPORT_OPTS
 $rpc_py nvmf_create_subsystem nqn.2016-06.io.spdk:cnode1 -a -s SPDK00000000000001 -m 10

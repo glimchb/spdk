@@ -1,5 +1,14 @@
 # Changelog
 
+### sock
+
+The `default_psk` field was added in the `struct spdk_sock_impl_opts` to set
+default PSK for SSL for the POSIX sock module. The default is `1234567890ABCDEF`.
+
+### rpc
+
+New optional parameter `default_psk` was added to the `sock_impl_set_options` RPC.
+
 ## v22.05: (Upcoming Release)
 
 ### sock

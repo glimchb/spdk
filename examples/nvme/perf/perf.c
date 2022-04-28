@@ -352,6 +352,38 @@ perf_set_sock_zcopy(const char *impl_name, bool enable)
 }
 
 static void
+perf_set_sock_psk(const char *impl_name, char *psk)
+{
+	struct spdk_sock_impl_opts sock_opts = {};
+	size_t opts_size = sizeof(sock_opts);
+	int rc;
+
+	rc = spdk_sock_impl_get_opts(impl_name, &sock_opts, &opts_size);
+	if (rc != 0) {
+		if (errno == EINVAL) {
+			fprintf(stderr, "Unknown sock impl %s\n", impl_name);
+		} else {
+			fprintf(stderr, "Failed to get opts for sock impl %s: error %d (%s)\n", impl_name, errno,
+				strerror(errno));
+		}
+		return;
+	}
+
+	if (opts_size != sizeof(sock_opts)) {
+		fprintf(stderr, "Warning: sock_opts size mismatch. Expected %zu, received %zu\n",
+			sizeof(sock_opts), opts_size);
+		opts_size = sizeof(sock_opts);
+	}
+
+	sock_opts.default_psk = psk;
+
+	if (spdk_sock_impl_set_opts(impl_name, &sock_opts, opts_size)) {
+		fprintf(stderr, "Failed to set psk=%s for sock impl %s: error %d (%s)\n",
+			psk, impl_name, errno, strerror(errno));
+	}
+}
+
+static void
 nvme_perf_reset_sgl(void *ref, uint32_t sgl_offset)
 {
 	struct iovec *iov;
@@ -2485,6 +2517,7 @@ parse_args(int argc, char **argv, struct spdk_env_opts *env_opts)
 				fprintf(stderr, "Failed to set sock impl %s, err %d (%s)\n", optarg, errno, strerror(errno));
 				return 1;
 			}
+			perf_set_sock_psk(optarg, "1234567890ABCDEF");
 			break;
 		case PERF_TRANSPORT_STATISTICS:
 			g_dump_transport_stats = true;
