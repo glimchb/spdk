@@ -97,7 +97,9 @@ static struct spdk_sock_impl_opts g_spdk_uring_sock_impl_opts = {
 	.enable_zerocopy_send_client = false,
 	.zerocopy_threshold = 0,
 	.psk_key = NULL,
-	.psk_identity = NULL
+	.psk_identity = NULL,
+	.tls_version = 13,
+	.enable_ktls = false
 };
 
 static struct spdk_sock_map g_map = {
@@ -1533,6 +1535,8 @@ uring_sock_impl_get_opts(struct spdk_sock_impl_opts *opts, size_t *len)
 	GET_FIELD(zerocopy_threshold);
 	GET_FIELD(psk_key);
 	GET_FIELD(psk_identity);
+	GET_FIELD(tls_version);
+	GET_FIELD(enable_ktls);
 
 #undef GET_FIELD
 #undef FIELD_OK
@@ -1567,6 +1571,8 @@ uring_sock_impl_set_opts(const struct spdk_sock_impl_opts *opts, size_t len)
 	SET_FIELD(zerocopy_threshold);
 	SET_FIELD(psk_key);
 	SET_FIELD(psk_identity);
+	SET_FIELD(tls_version);
+	SET_FIELD(enable_ktls);
 
 #undef SET_FIELD
 #undef FIELD_OK

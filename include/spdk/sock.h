@@ -130,6 +130,16 @@ struct spdk_sock_impl_opts {
 	 * Set default PSK ID for SSL socket.
 	 */
 	char *psk_identity;
+
+	/**
+	 * TLS protocol version. Used by posix socket module.
+	 */
+	uint32_t tls_version;
+
+	/**
+	 * Enable or disable kernel TLS. Used by posix socket modules.
+	 */
+	bool enable_ktls;
 };
 
 /**
@@ -160,6 +170,17 @@ struct spdk_sock_opts {
 	 * Time in msec to wait ack until connection is closed forcefully.
 	 */
 	uint32_t ack_timeout;
+
+	/**
+	 * TLS protocol version. Used by posix socket module.
+	 */
+	uint32_t tls_version;
+
+	/**
+	 * Used to enable or disable KTLS for ssl posix socket module.
+	 */
+	bool ktls;
+
 };
 
 /**

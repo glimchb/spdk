@@ -9,9 +9,19 @@ Added new `ssl` based socket implementation, the code is located in module/sock/
 The `psk_key` and `psk_identity` fields were added in the `struct spdk_sock_impl_opts`
 to set default PSK KEY and ID for SSL for the POSIX sock module.
 
+The `tls_version` field was added in the `struct spdk_sock_impl_opts` to set
+default TLS protocol version for the POSIX sock module. The default is `13`.
+
+The `enable_ktls` field was added in the `struct spdk_sock_impl_opts` to enable
+kernel TLS protocol for the POSIX sock module. The default is `false`.
+
 ### rpc
 
 New optional parameters `psk_key` and `psk_identity` were added to the `sock_impl_set_options` RPC.
+New optional parameter `tls_version` was added to the `sock_impl_set_options` RPC.
+New optional parameter `enable_ktls` was added to the `sock_impl_set_options` RPC.
+A new option `tls_version` was added to the `spdk_sock_opts` structure.
+A new option `ktls` was added to the `spdk_sock_opts` structure.
 
 ### blobstore
 

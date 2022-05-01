@@ -153,6 +153,8 @@ export SPDK_TEST_RAID5
 export SPDK_TEST_URING
 : ${SPDK_TEST_USDT=0}
 export SPDK_TEST_USDT
+: ${SPDK_TEST_OPENSSL=0}
+export SPDK_TEST_OPENSSL
 : ${SPDK_TEST_USE_IGB_UIO:=0}
 export SPDK_TEST_USE_IGB_UIO
 : ${SPDK_TEST_SCHEDULER:=0}
@@ -472,6 +474,10 @@ function get_config_params() {
 	# Check whether liburing library header exists
 	if [ -f /usr/include/liburing/io_uring.h ] && [ $SPDK_TEST_URING -eq 1 ]; then
 		config_params+=' --with-uring'
+	fi
+
+	if [[ $OSID == centos && $OSVERSION == 7 ]] || [ $SPDK_TEST_OPENSSL -eq 0 ]; then
+		config_params+=' --without-openssl'
 	fi
 
 	if [ -n "$SPDK_RUN_EXTERNAL_DPDK" ]; then

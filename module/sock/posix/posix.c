@@ -5,6 +5,7 @@
  */
 
 #include "spdk/stdinc.h"
+#include "spdk/config.h"
 
 #if defined(__FreeBSD__)
 #include <sys/event.h>
@@ -27,9 +28,11 @@
 #include "spdk_internal/sock.h"
 #include "../sock_kernel.h"
 
+#ifdef SPDK_CONFIG_OPENSSL
 #include "openssl/crypto.h"
 #include "openssl/err.h"
 #include "openssl/ssl.h"
+#endif
 
 #define MAX_TMPBUF 1024
 #define PORTNUMLEN 32
@@ -53,8 +56,10 @@ struct spdk_posix_sock {
 
 	int			placement_id;
 
+#ifdef SPDK_CONFIG_OPENSSL
 	SSL_CTX			*ctx;
 	SSL			*ssl;
+#endif
 
 	TAILQ_ENTRY(spdk_posix_sock)	link;
 };
@@ -78,7 +83,9 @@ static struct spdk_sock_impl_opts g_spdk_posix_sock_impl_opts = {
 	.enable_zerocopy_send_client = false,
 	.zerocopy_threshold = 0,
 	.psk_key = NULL,
-	.psk_identity = NULL
+	.psk_identity = NULL,
+	.tls_version = 13,
+	.enable_ktls = false
 };
 
 static struct spdk_sock_map g_map = {
@@ -421,6 +428,8 @@ posix_fd_create(struct addrinfo *res, struct spdk_sock_opts *opts)
 	return fd;
 }
 
+#ifdef SPDK_CONFIG_OPENSSL
+
 static unsigned int
 posix_sock_tls_psk_server_cb(SSL *ssl,
 			     const char *id,
@@ -512,9 +521,11 @@ err:
 }
 
 static SSL_CTX *
-posix_sock_create_ssl_context(const SSL_METHOD *method)
+posix_sock_create_ssl_context(const SSL_METHOD *method, struct spdk_sock_opts *opts)
 {
 	SSL_CTX *ctx;
+	int version;
+	int tls_ver = opts->tls_version ? opts->tls_version : g_spdk_posix_sock_impl_opts.tls_version;
 
 	SSL_library_init();
 	OpenSSL_add_all_algorithms();
@@ -525,6 +536,29 @@ posix_sock_create_ssl_context(const SSL_METHOD *method)
 		SPDK_ERRLOG("SSL_CTX_new() failed, errno = %d\n", errno);
 		return NULL;
 	}
+
+	switch (tls_ver) {
+	case 11:
+		version = TLS1_1_VERSION;
+		break;
+	case 12:
+		version = TLS1_2_VERSION;
+		break;
+	case 13:
+		version = TLS1_3_VERSION;
+		break;
+	default:
+		SPDK_ERRLOG("Incorrect version provided: %d\n", tls_ver);
+		return NULL;
+	}
+
+	SSL_CTX_set_min_proto_version(ctx, version);
+	SSL_CTX_set_max_proto_version(ctx, version);
+#ifdef SPDK_CONFIG_ENABLE_KTLS
+	if (opts->ktls && g_spdk_posix_sock_impl_opts.enable_ktls) {
+		SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS);
+	}
+#endif
 	SPDK_DEBUGLOG(sock_posix, "SSL context created\n");
 	return ctx;
 }
@@ -562,6 +596,7 @@ ssl_sock_connect_loop(SSL_CTX *ctx, int fd)
 		return NULL;
 	}
 	SPDK_DEBUGLOG(sock_posix, "%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
+	SPDK_DEBUGLOG(sock_posix, "%s = SSL_get_version(%p)\n", SSL_get_version(ssl), ssl);
 	SPDK_DEBUGLOG(sock_posix, "Negotiated Cipher suite:%s\n",
 		      SSL_CIPHER_get_name(SSL_get_current_cipher(ssl)));
 	return ssl;
@@ -600,6 +635,7 @@ ssl_sock_accept_loop(SSL_CTX *ctx, int fd)
 		return NULL;
 	}
 	SPDK_DEBUGLOG(sock_posix, "%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
+	SPDK_DEBUGLOG(sock_posix, "%s = SSL_get_version(%p)\n", SSL_get_version(ssl), ssl);
 	SPDK_DEBUGLOG(sock_posix, "Negotiated Cipher suite:%s\n",
 		      SSL_CIPHER_get_name(SSL_get_current_cipher(ssl)));
 	return ssl;
@@ -692,6 +728,7 @@ SSL_writev(SSL *ssl, struct iovec *iov, int iovcnt)
 		return -1;
 	}
 }
+#endif
 
 static struct spdk_sock *
 posix_sock_create(const char *ip, int port,
@@ -708,8 +745,10 @@ posix_sock_create(const char *ip, int port,
 	int rc;
 	bool enable_zcopy_user_opts = true;
 	bool enable_zcopy_impl_opts = true;
+#ifdef SPDK_CONFIG_OPENSSL
 	SSL_CTX *ctx = 0;
 	SSL *ssl = 0;
+#endif
 
 	assert(opts != NULL);
 
@@ -747,8 +786,9 @@ retry:
 			continue;
 		}
 		if (type == SPDK_SOCK_CREATE_LISTEN) {
+#ifdef SPDK_CONFIG_OPENSSL
 			if (enable_ssl) {
-				ctx = posix_sock_create_ssl_context(TLS_server_method());
+				ctx = posix_sock_create_ssl_context(TLS_server_method(), opts);
 				if (!ctx) {
 					SPDK_ERRLOG("posix_sock_create_ssl_context() failed, errno = %d\n", errno);
 					close(fd);
@@ -756,6 +796,7 @@ retry:
 					break;
 				}
 			}
+#endif
 			rc = bind(fd, res->ai_addr, res->ai_addrlen);
 			if (rc != 0) {
 				SPDK_ERRLOG("bind() failed at port %d, errno = %d\n", port, errno);
@@ -796,8 +837,9 @@ retry:
 				continue;
 			}
 			enable_zcopy_impl_opts = g_spdk_posix_sock_impl_opts.enable_zerocopy_send_client;
+#ifdef SPDK_CONFIG_OPENSSL
 			if (enable_ssl) {
-				ctx = posix_sock_create_ssl_context(TLS_client_method());
+				ctx = posix_sock_create_ssl_context(TLS_client_method(), opts);
 				if (!ctx) {
 					SPDK_ERRLOG("posix_sock_create_ssl_context() failed, errno = %d\n", errno);
 					close(fd);
@@ -813,6 +855,7 @@ retry:
 					break;
 				}
 			}
+#endif
 		}
 
 		flag = fcntl(fd, F_GETFL);
@@ -840,6 +883,7 @@ retry:
 		return NULL;
 	}
 
+#ifdef SPDK_CONFIG_OPENSSL
 	if (ctx) {
 		sock->ctx = ctx;
 	}
@@ -847,6 +891,7 @@ retry:
 	if (ssl) {
 		sock->ssl = ssl;
 	}
+#endif
 
 	return &sock->base;
 }
@@ -872,7 +917,9 @@ posix_sock_accept(struct spdk_sock *_sock)
 	int				rc, fd;
 	struct spdk_posix_sock		*new_sock;
 	int				flag;
+#ifdef SPDK_CONFIG_OPENSSL
 	SSL *ssl = 0;
+#endif
 
 	memset(&sa, 0, sizeof(sa));
 	salen = sizeof(sa);
@@ -905,6 +952,7 @@ posix_sock_accept(struct spdk_sock *_sock)
 	}
 #endif
 
+#ifdef SPDK_CONFIG_OPENSSL
 	/* Establish SSL connection */
 	if (sock->ctx) {
 		ssl = ssl_sock_accept_loop(sock->ctx, fd);
@@ -915,6 +963,7 @@ posix_sock_accept(struct spdk_sock *_sock)
 			return NULL;
 		}
 	}
+#endif
 
 	/* Inherit the zero copy feature from the listen socket */
 	new_sock = posix_sock_alloc(fd, sock->zcopy);
@@ -923,6 +972,7 @@ posix_sock_accept(struct spdk_sock *_sock)
 		return NULL;
 	}
 
+#ifdef SPDK_CONFIG_OPENSSL
 	if (sock->ctx) {
 		new_sock->ctx = sock->ctx;
 	}
@@ -930,6 +980,7 @@ posix_sock_accept(struct spdk_sock *_sock)
 	if (ssl) {
 		new_sock->ssl = ssl;
 	}
+#endif
 
 	return &new_sock->base;
 }
@@ -1076,9 +1127,12 @@ _sock_flush(struct spdk_sock *sock)
 	msg.msg_iov = iovs;
 	msg.msg_iovlen = iovcnt;
 
+#ifdef SPDK_CONFIG_OPENSSL
 	if (psock->ssl) {
 		rc = SSL_writev(psock->ssl, iovs, iovcnt);
-	} else {
+	} else
+#endif
+	{
 		rc = sendmsg(psock->fd, &msg, flags);
 	}
 	if (rc <= 0) {
@@ -1223,9 +1277,12 @@ posix_sock_read(struct spdk_posix_sock *sock)
 		return bytes_avail;
 	}
 
+#ifdef SPDK_CONFIG_OPENSSL
 	if (sock->ssl) {
 		bytes_recvd = SSL_readv(sock->ssl, iov, 2);
-	} else {
+	} else
+#endif
+	{
 		bytes_recvd = readv(sock->fd, iov, 2);
 	}
 
@@ -1274,9 +1331,12 @@ posix_sock_readv(struct spdk_sock *_sock, struct iovec *iov, int iovcnt)
 			sock->socket_has_data = false;
 			TAILQ_REMOVE(&group->socks_with_data, sock, link);
 		}
+#ifdef SPDK_CONFIG_OPENSSL
 		if (sock->ssl) {
 			return SSL_readv(sock->ssl, iov, iovcnt);
-		} else {
+		} else
+#endif
+		{
 			return readv(sock->fd, iov, iovcnt);
 		}
 	}
@@ -1293,9 +1353,12 @@ posix_sock_readv(struct spdk_sock *_sock, struct iovec *iov, int iovcnt)
 
 		if (len >= MIN_SOCK_PIPE_SIZE) {
 			/* TODO: Should this detect if kernel socket is drained? */
+#ifdef SPDK_CONFIG_OPENSSL
 			if (sock->ssl) {
 				return SSL_readv(sock->ssl, iov, iovcnt);
-			} else {
+			} else
+#endif
+			{
 				return readv(sock->fd, iov, iovcnt);
 			}
 		}
@@ -1340,9 +1403,12 @@ posix_sock_writev(struct spdk_sock *_sock, struct iovec *iov, int iovcnt)
 		return -1;
 	}
 
+#ifdef SPDK_CONFIG_OPENSSL
 	if (sock->ssl) {
 		return SSL_writev(sock->ssl, iov, iovcnt);
-	} else {
+	} else
+#endif
+	{
 		return writev(sock->fd, iov, iovcnt);
 	}
 }
@@ -1862,6 +1928,8 @@ posix_sock_impl_get_opts(struct spdk_sock_impl_opts *opts, size_t *len)
 	GET_FIELD(zerocopy_threshold);
 	GET_FIELD(psk_key);
 	GET_FIELD(psk_identity);
+	GET_FIELD(tls_version);
+	GET_FIELD(enable_ktls);
 
 #undef GET_FIELD
 #undef FIELD_OK
@@ -1897,6 +1965,8 @@ posix_sock_impl_set_opts(const struct spdk_sock_impl_opts *opts, size_t len)
 	SET_FIELD(zerocopy_threshold);
 	SET_FIELD(psk_key);
 	SET_FIELD(psk_identity);
+	SET_FIELD(tls_version);
+	SET_FIELD(enable_ktls);
 
 #undef SET_FIELD
 #undef FIELD_OK
@@ -1934,6 +2004,8 @@ static struct spdk_net_impl g_posix_net_impl = {
 };
 
 SPDK_NET_IMPL_REGISTER(posix, &g_posix_net_impl, DEFAULT_SOCK_PRIORITY);
+
+#ifdef SPDK_CONFIG_OPENSSL
 
 static struct spdk_sock *
 ssl_sock_listen(const char *ip, int port, struct spdk_sock_opts *opts)
@@ -1977,3 +2049,5 @@ static struct spdk_net_impl g_ssl_net_impl = {
 
 SPDK_NET_IMPL_REGISTER(ssl, &g_ssl_net_impl, DEFAULT_SOCK_PRIORITY);
 SPDK_LOG_REGISTER_COMPONENT(sock_posix)
+
+#endif

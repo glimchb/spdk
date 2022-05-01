@@ -30,6 +30,8 @@ if [[ "$psk" != "nqn.2014-08.org.nvmexpress:uuid:f81d4fae-7dec-11d0-a765-00a0c91
 	echo "PSK ID was not set correctly $psk != nqn.2014-08.org.nvmexpress:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
 	exit 1
 fi
+$rpc_py sock_impl_set_options -i ssl --tls-version 13
+$rpc_py sock_impl_set_options -i ssl --disable-ktls
 
 $rpc_py framework_start_init
 $rpc_py nvmf_create_transport $NVMF_TRANSPORT_OPTS

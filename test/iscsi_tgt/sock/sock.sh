@@ -113,6 +113,34 @@ killprocess $server_pid || true
 timing_exit sock_client
 
 # ----------------
+# Test SSL client path
+# ----------------
+timing_enter sock_ssl_client
+echo "Testing SSL client path"
+
+# start echo server using openssl
+
+$OPENSSL_APP s_server -debug -state -tlsextdebug -tls1_3 -psk_identity $PSK_ID -psk "1234567890ABCDEF" -accept $INITIATOR_IP:$ISCSI_PORT -nocert &
+server_pid=$!
+trap 'killprocess $server_pid;iscsitestfini; exit 1' SIGINT SIGTERM EXIT
+
+waitfortcp $server_pid $INITIATOR_IP:$ISCSI_PORT
+
+# send message using hello_sock client
+message="**MESSAGE:This is a test message from the client**"
+response=$(echo $message | $HELLO_SOCK_APP -H $INITIATOR_IP -P $ISCSI_PORT -N "ssl")
+
+if ! echo "$response" | grep -q "$message"; then
+	exit 1
+fi
+
+trap '-' SIGINT SIGTERM EXIT
+# NOTE: socat returns code 143 on SIGINT
+killprocess $server_pid || true
+
+timing_exit sock_ssl_client
+
+# ----------------
 # Test SSL server path
 # ----------------
 timing_enter sock_ssl_server
@@ -127,6 +155,34 @@ waitforlisten $server_pid
 # send message using hello_sock client
 message="**MESSAGE:This is a test message from the hello_sock client with ssl**"
 response=$(echo $message | $HELLO_SOCK_APP -H $TARGET_IP -P $ISCSI_PORT -N "ssl")
+if ! echo "$response" | grep -q "$message"; then
+	exit 1
+fi
+
+# send message using hello_sock client using TLS 1.3
+message="**MESSAGE:This is a test message from the hello_sock client with ssl using TLS 1.3**"
+response=$(echo $message | $HELLO_SOCK_APP -H $TARGET_IP -P $ISCSI_PORT -N "ssl" -T 13)
+if ! echo "$response" | grep -q "$message"; then
+	exit 1
+fi
+
+# send message using hello_sock client using TLS 1.2
+message="**MESSAGE:This is a test message from the hello_sock client with ssl using TLS 1.2**"
+response=$(echo $message | $HELLO_SOCK_APP -H $TARGET_IP -P $ISCSI_PORT -N "ssl" -T 12)
+if ! echo "$response" | grep -q "$message"; then
+	exit 1
+fi
+
+# send message using hello_sock client with zero copy disabled
+message="**MESSAGE:This is a test message from the hello_sock client with zero copy disabled**"
+response=$(echo $message | $HELLO_SOCK_APP -H $TARGET_IP -P $ISCSI_PORT -N "ssl" -k)
+if ! echo "$response" | grep -q "$message"; then
+	exit 1
+fi
+
+# send message using hello_sock client with zero copy enabled
+message="**MESSAGE:This is a test message from the hello_sock client with zero copy enabled**"
+response=$(echo $message | $HELLO_SOCK_APP -H $TARGET_IP -P $ISCSI_PORT -N "ssl" -K)
 if ! echo "$response" | grep -q "$message"; then
 	exit 1
 fi
@@ -147,6 +203,20 @@ response=$( (
 	echo -ne $message
 	sleep 2
 ) | $OPENSSL_APP s_client -debug -state -tlsextdebug -tls1_2 -psk_identity $PSK_ID -psk "1234567890ABCDEF" -connect $TARGET_IP:$ISCSI_PORT)
+if ! echo "$response" | grep -q "$message"; then
+	exit 1
+fi
+
+# send message using openssl client with wrong PSK ID
+message="**MESSAGE:This is a test message from the client**"
+response=$(echo $message | $OPENSSL_APP s_client -debug -state -tlsextdebug -tls1_3 -psk_identity "wrong ID" -psk "1234567890ABCDEF" -connect $INITIATOR_IP:$ISCSI_PORT)
+if ! echo "$response" | grep -q "$message"; then
+	exit 1
+fi
+
+# send message using openssl client with wrong PSK KEY
+message="**MESSAGE:This is a test message from the client**"
+response=$(echo $message | $OPENSSL_APP s_client -debug -state -tlsextdebug -tls1_3 -psk_identity $PSK_ID -psk "DEADBEEFDEADBEEF" -connect $INITIATOR_IP:$ISCSI_PORT)
 if ! echo "$response" | grep -q "$message"; then
 	exit 1
 fi

@@ -280,11 +280,12 @@ CXXFLAGS += $(COMMON_CFLAGS) -std=c++11
 
 SYS_LIBS += -lrt
 SYS_LIBS += -luuid
-SYS_LIBS += -lssl
 SYS_LIBS += -lcrypto
 SYS_LIBS += -lm
 
 PKGCONF ?= pkg-config
+ifeq ($(CONFIG_OPENSSL),y)
+SYS_LIBS += -lssl
 ifneq ($(strip $(CONFIG_OPENSSL_PATH)),)
 CFLAGS += -I$(CONFIG_OPENSSL_PATH)/include
 LDFLAGS += -L$(CONFIG_OPENSSL_PATH)
@@ -294,6 +295,11 @@ else
 ifeq ($(shell $(PKGCONF) --exists libssl11 && echo 1),1)
 CFLAGS  += $(shell $(PKGCONF) --cflags libssl11)
 LDFLAGS += $(shell $(PKGCONF) --libs libssl11)
+else
+CFLAGS  += $(shell $(PKGCONF) --cflags libssl)
+LDFLAGS += $(shell $(PKGCONF) --libs libssl)
+endif
+endif
 endif
 endif
 

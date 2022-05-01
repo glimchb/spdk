@@ -94,6 +94,7 @@ function usage() {
 	echo "                           be searched."
 	echo " --with-openssl[=DIR]      Build OPENSSL with custom path. Otherwise the regular system paths will"
 	echo "                           be searched."
+	echo " --without-openssl         The argument must be a directory containing lib and include."
 	echo " --with-fuse               Build FUSE components for mounting a blobfs filesystem."
 	echo " --without-fuse            No path required."
 	echo " --with-nvme-cuse          Build NVMe driver with support for CUSE-based character devices."
@@ -591,6 +592,15 @@ for i in "$@"; do
 		--with-openssl=*)
 			check_dir "$i"
 			CONFIG[OPENSSL_PATH]=$(readlink -f ${i#*=})
+			CONFIG[OPENSSL]=y
+			;;
+		--with-openssl)
+			CONFIG[OPENSSL]=y
+			CONFIG[OPENSSL_PATH]=
+			;;
+		--without-openssl)
+			CONFIG[OPENSSL]=n
+			CONFIG[OPENSSL_PATH]=
 			;;
 		--with-fuse)
 			CONFIG[FUSE]=y
@@ -1081,6 +1091,21 @@ if [[ "${CONFIG[URING]}" = "y" ]]; then
 	elif ! echo -e '#include <liburing.h>\nint main(void) { return 0; }\n' \
 		| "${BUILD_CMD[@]}" -luring - 2> /dev/null; then
 		echo "--with-uring requires liburing."
+		echo "Please build and install then re-run this script."
+		exit 1
+	fi
+fi
+
+if [[ "${CONFIG[OPENSSL]}" = "y" ]]; then
+	if [[ -n "${CONFIG[OPENSSL_PATH]}" ]]; then
+		if [ ! -d "${CONFIG[OPENSSL_PATH]}" ]; then
+			echo "${CONFIG[OPENSSL_PATH]}: directory not found"
+			exit 1
+		fi
+	elif ! echo -e '#include <openssl/crypto.h>\n#include <openssl/ssl.h>\n' \
+		'int main(void) { return 0; }\n' \
+		| "${BUILD_CMD[@]}" -lssl - 2> /dev/null; then
+		echo "--with-openssl requires openssl-devel."
 		echo "Please build and install then re-run this script."
 		exit 1
 	fi

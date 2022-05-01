@@ -9435,7 +9435,9 @@ Example response:
     "enable_zerocopy_send_client": false,
     "zerocopy_threshold": 0,
     "psk_key": "1234567890ABCDEF",
-    "psk_identity": "nqn.2014-08.org.nvmexpress:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
+    "psk_identity": "nqn.2014-08.org.nvmexpress:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+    "tls_version": 13,
+    "enable_ktls": false
   }
 }
 ~~~
@@ -9460,6 +9462,8 @@ zerocopy_threshold          | Optional | number      | Set zerocopy_threshold in
 that fall below this threshold may be sent without zerocopy flag set
 psk_key                     | Optional | string      | Default PSK KEY in hexadecimal digits, e.g. 1234567890ABCDEF
 psk_identity                | Optional | string      | Default PSK ID, e.g. nqn.2014-08.org.nvmexpress:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6
+tls_version                 | Optional | number      | TLS protocol version, e.g. 13
+enable_ktls                 | Optional | boolean     | Enable or disable Kernel TLS
 
 #### Response
 
@@ -9485,7 +9489,8 @@ Example request:
     "enable_zerocopy_send_client": false,
     "zerocopy_threshold": 10240,
     "psk_key": "1234567890ABCDEF",
-    "psk_identity": "nqn.2014-08.org.nvmexpress:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
+    "psk_identity": "nqn.2014-08.org.nvmexpress:uuid:f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+    "tls_version": 13
   }
 }
 ~~~
