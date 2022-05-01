@@ -376,6 +376,7 @@ perf_set_sock_psk(const char *impl_name, char *psk)
 	}
 
 	sock_opts.default_psk = psk;
+	sock_opts.tls_version = 13;
 
 	if (spdk_sock_impl_set_opts(impl_name, &sock_opts, opts_size)) {
 		fprintf(stderr, "Failed to set psk=%s for sock impl %s: error %d (%s)\n",

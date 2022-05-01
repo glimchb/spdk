@@ -9198,7 +9198,8 @@ Example response:
     "enable_placement_id": 0,
     "enable_zerocopy_send_server": true,
     "enable_zerocopy_send_client": false,
-    "default_psk": "1234567890ABCDEF"
+    "default_psk": "1234567890ABCDEF",
+    "tls_version": 13
   }
 }
 ~~~
@@ -9220,6 +9221,7 @@ enable_placement_id         | Optional | number      | Enable or disable placeme
 enable_zerocopy_send_server | Optional | boolean     | Enable or disable zero copy on send for server sockets
 enable_zerocopy_send_client | Optional | boolean     | Enable or disable zero copy on send for client sockets
 default_psk                 | Optional | string      | Default PSK in hexadecimal digits, e.g. 1234567890ABCDEF
+tls_version                 | Optional | number      | TLS protocol versoin, e.g. 13
 
 #### Response
 
@@ -9243,7 +9245,8 @@ Example request:
     "enable_placement_id": 0,
     "enable_zerocopy_send_server": true,
     "enable_zerocopy_send_client": false,
-    "default_psk": "1234567890ABCDEF"
+    "default_psk": "1234567890ABCDEF",
+    "tls_version": 13
   }
 }
 ~~~

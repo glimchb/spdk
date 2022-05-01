@@ -24,6 +24,7 @@ if [[  "$psk" != "4321DEADBEEF1234" ]]; then
 	echo "PSK was not set correctly $psk != 4321DEADBEEF1234"
 	exit 1
 fi
+$rpc_py sock_impl_set_options -i ssl --tls-version 13
 
 $rpc_py framework_start_init
 $rpc_py nvmf_create_transport $NVMF_TRANSPORT_OPTS

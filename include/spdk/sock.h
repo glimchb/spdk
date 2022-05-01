@@ -153,6 +153,11 @@ struct spdk_sock_impl_opts {
 	 * Set PSK key for SSL socket.
 	 */
 	char *default_psk;
+
+	/**
+	 * TLS protocol version. Used by posix socket module.
+	 */
+	uint32_t tls_version;
 };
 
 /**

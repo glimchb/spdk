@@ -105,7 +105,8 @@ static struct spdk_sock_impl_opts g_spdk_posix_sock_impl_opts = {
 	.enable_zerocopy_send_server = true,
 	.enable_zerocopy_send_client = false,
 	.zerocopy_threshold = 0,
-	.default_psk = NULL
+	.default_psk = NULL,
+	.tls_version = 13
 };
 
 static struct spdk_sock_map g_map = {
@@ -515,7 +516,7 @@ err:
 }
 
 static SSL_CTX *
-posix_sock_create_ssl_context(const SSL_METHOD *method)
+posix_sock_create_ssl_context(const SSL_METHOD *method, int version)
 {
 	SSL_CTX *ctx;
 
@@ -528,9 +529,8 @@ posix_sock_create_ssl_context(const SSL_METHOD *method)
 		SPDK_ERRLOG("SSL_CTX_new() failed, errno = %d\n", errno);
 		return NULL;
 	}
-	SSL_CTX_set_cipher_list(ctx, "TLS1_3_RFC_AES_128_GCM_SHA256");
-	SSL_CTX_set_ecdh_auto(ctx, 1);
-	EVP_add_cipher(EVP_aes_128_gcm());
+	SSL_CTX_set_min_proto_version(ctx, version);
+	SSL_CTX_set_max_proto_version(ctx, version);
 	SPDK_DEBUGLOG(sock_posix, "SSL context created\n");
 	return ctx;
 }
@@ -568,6 +568,7 @@ ssl_sock_connect_loop(SSL_CTX *ctx, int fd)
 		return NULL;
 	}
 	SPDK_DEBUGLOG(sock_posix, "%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
+	SPDK_DEBUGLOG(sock_posix, "%s = SSL_get_version(%p)\n", SSL_get_version(ssl), ssl);
 	SPDK_DEBUGLOG(sock_posix, "Negotiated Cipher suite:%s\n",
 		      SSL_CIPHER_get_name(SSL_get_current_cipher(ssl)));
 	return ssl;
@@ -606,6 +607,7 @@ ssl_sock_accept_loop(SSL_CTX *ctx, int fd)
 		return NULL;
 	}
 	SPDK_DEBUGLOG(sock_posix, "%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
+	SPDK_DEBUGLOG(sock_posix, "%s = SSL_get_version(%p)\n", SSL_get_version(ssl), ssl);
 	SPDK_DEBUGLOG(sock_posix, "Negotiated Cipher suite:%s\n",
 		      SSL_CIPHER_get_name(SSL_get_current_cipher(ssl)));
 	return ssl;
@@ -716,6 +718,7 @@ posix_sock_create(const char *ip, int port,
 	bool enable_zcopy_impl_opts = true;
 	SSL_CTX *ctx = 0;
 	SSL *ssl = 0;
+	int tls_version = TLS1_3_VERSION ? g_spdk_posix_sock_impl_opts.tls_version == 13 : TLS1_2_VERSION;
 
 	assert(opts != NULL);
 
@@ -754,7 +757,7 @@ retry:
 		}
 		if (type == SPDK_SOCK_CREATE_LISTEN) {
 			if (enable_ssl) {
-				ctx = posix_sock_create_ssl_context(TLS_server_method());
+				ctx = posix_sock_create_ssl_context(TLS_server_method(), tls_version);
 				if (!ctx) {
 					SPDK_ERRLOG("posix_sock_create_ssl_context() failed, errno = %d\n", errno);
 					close(fd);
@@ -803,7 +806,7 @@ retry:
 			}
 			enable_zcopy_impl_opts = g_spdk_posix_sock_impl_opts.enable_zerocopy_send_client;
 			if (enable_ssl) {
-				ctx = posix_sock_create_ssl_context(TLS_client_method());
+				ctx = posix_sock_create_ssl_context(TLS_client_method(), tls_version);
 				if (!ctx) {
 					SPDK_ERRLOG("posix_sock_create_ssl_context() failed, errno = %d\n", errno);
 					close(fd);
@@ -1860,6 +1863,7 @@ posix_sock_impl_get_opts(struct spdk_sock_impl_opts *opts, size_t *len)
 	GET_FIELD(enable_zerocopy_send_client);
 	GET_FIELD(zerocopy_threshold);
 	GET_FIELD(default_psk);
+	GET_FIELD(tls_version);
 
 #undef GET_FIELD
 #undef FIELD_OK
@@ -1894,6 +1898,7 @@ posix_sock_impl_set_opts(const struct spdk_sock_impl_opts *opts, size_t len)
 	SET_FIELD(enable_zerocopy_send_client);
 	SET_FIELD(zerocopy_threshold);
 	SET_FIELD(default_psk);
+	SET_FIELD(tls_version);
 
 #undef SET_FIELD
 #undef FIELD_OK

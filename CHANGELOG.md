@@ -5,9 +5,14 @@
 The `default_psk` field was added in the `struct spdk_sock_impl_opts` to set
 default PSK for SSL for the POSIX sock module. The default is `1234567890ABCDEF`.
 
+The `tls_version` field was added in the `struct spdk_sock_impl_opts` to set
+default TLS protocol version for the POSIX sock module. The default is `13`.
+
 ### rpc
 
 New optional parameter `default_psk` was added to the `sock_impl_set_options` RPC.
+
+New optional parameter `tls_version` was added to the `sock_impl_set_options` RPC.
 
 ## v22.05: (Upcoming Release)
 
