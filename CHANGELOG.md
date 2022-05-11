@@ -7,6 +7,10 @@
 Added new `ssl` based socket implementation, the code is located in module/sock/posix.
 For now we are using hard-coded PSK and only support TLS 1.3
 
+### rpc
+
+New options `ktls` and `tls_version` were added to the `spdk_sock_opts` structure.
+
 ## v22.05
 
 ### sock

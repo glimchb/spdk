@@ -506,9 +506,10 @@ err:
 }
 
 static SSL_CTX *
-posix_sock_create_ssl_context(const SSL_METHOD *method)
+posix_sock_create_ssl_context(const SSL_METHOD *method, struct spdk_sock_opts *opts)
 {
 	SSL_CTX *ctx;
+	int tls_version = 0;
 
 	SSL_library_init();
 	OpenSSL_add_all_algorithms();
@@ -520,6 +521,40 @@ posix_sock_create_ssl_context(const SSL_METHOD *method)
 		return NULL;
 	}
 	SPDK_DEBUGLOG(sock_posix, "SSL context created\n");
+
+	switch (opts->tls_version) {
+	case SPDK_TLS_VERSION_1_1:
+		tls_version = TLS1_1_VERSION;
+		break;
+	case SPDK_TLS_VERSION_1_2:
+		tls_version = TLS1_2_VERSION;
+		break;
+	case SPDK_TLS_VERSION_1_3:
+		tls_version = TLS1_3_VERSION;
+		break;
+	default:
+		SPDK_ERRLOG("Incorrect TLS version provided: %d\n", opts->tls_version);
+	}
+
+	if (tls_version) {
+		SPDK_DEBUGLOG(sock_posix, "Hardening TLS version to '%d'='0x%X'\n", opts->tls_version, tls_version);
+		if (!SSL_CTX_set_min_proto_version(ctx, tls_version)) {
+			SPDK_ERRLOG("Unable to set Min TLS version to '%d'='0x%X\n", opts->tls_version, tls_version);
+		}
+		if (!SSL_CTX_set_max_proto_version(ctx, tls_version)) {
+			SPDK_ERRLOG("Unable to set Max TLS version to '%d'='0x%X\n", opts->tls_version, tls_version);
+		}
+	}
+	if (opts->ktls) {
+		SPDK_DEBUGLOG(sock_posix, "Enabling kTLS offload\n");
+#ifdef SSL_OP_ENABLE_KTLS
+		if (!SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS)) {
+			SPDK_ERRLOG("Unable to set kTLS offload via SSL_CTX_set_options()\n");
+		}
+#else
+		SPDK_ERRLOG("kTLS offload is not supported in current openssl. Make sure to use ./Configure enable-ktls\n");
+#endif
+	}
 	return ctx;
 }
 
@@ -742,7 +777,7 @@ retry:
 		}
 		if (type == SPDK_SOCK_CREATE_LISTEN) {
 			if (enable_ssl) {
-				ctx = posix_sock_create_ssl_context(TLS_server_method());
+				ctx = posix_sock_create_ssl_context(TLS_server_method(), opts);
 				if (!ctx) {
 					SPDK_ERRLOG("posix_sock_create_ssl_context() failed, errno = %d\n", errno);
 					close(fd);
@@ -791,7 +826,7 @@ retry:
 			}
 			enable_zcopy_impl_opts = g_spdk_posix_sock_impl_opts.enable_zerocopy_send_client;
 			if (enable_ssl) {
-				ctx = posix_sock_create_ssl_context(TLS_client_method());
+				ctx = posix_sock_create_ssl_context(TLS_client_method(), opts);
 				if (!ctx) {
 					SPDK_ERRLOG("posix_sock_create_ssl_context() failed, errno = %d\n", errno);
 					close(fd);

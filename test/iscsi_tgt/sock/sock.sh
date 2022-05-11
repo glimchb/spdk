@@ -131,6 +131,34 @@ if ! echo "$response" | grep -q "$message"; then
 	exit 1
 fi
 
+# send message using hello_sock client using TLS 1.3
+message="**MESSAGE:This is a test message from the hello_sock client with ssl using TLS 1.3**"
+response=$(echo $message | $HELLO_SOCK_APP -H $TARGET_IP -P $ISCSI_PORT -N "ssl" -T 13)
+if ! echo "$response" | grep -q "$message"; then
+	exit 1
+fi
+
+# send message using hello_sock client using TLS 1.2
+message="**MESSAGE:This is a test message from the hello_sock client with ssl using TLS 1.2**"
+response=$(echo $message | $HELLO_SOCK_APP -H $TARGET_IP -P $ISCSI_PORT -N "ssl" -T 12)
+if ! echo "$response" | grep -q "$message"; then
+	exit 1
+fi
+
+# send message using hello_sock client with KTLS disabled
+message="**MESSAGE:This is a test message from the hello_sock client with KTLS disabled**"
+response=$(echo $message | $HELLO_SOCK_APP -H $TARGET_IP -P $ISCSI_PORT -N "ssl" -k)
+if ! echo "$response" | grep -q "$message"; then
+	exit 1
+fi
+
+# send message using hello_sock client with KTLS enabled
+message="**MESSAGE:This is a test message from the hello_sock client with KTLS enabled**"
+response=$(echo $message | $HELLO_SOCK_APP -H $TARGET_IP -P $ISCSI_PORT -N "ssl" -K)
+if ! echo "$response" | grep -q "$message"; then
+	exit 1
+fi
+
 # send message using openssl client using TLS 1.3
 message="**MESSAGE:This is a test message from the openssl client using TLS 1.3**"
 response=$( (
