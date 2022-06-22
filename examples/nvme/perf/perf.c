@@ -248,6 +248,8 @@ static double g_zipf_theta;
  * to MQES to maximize the io_queue_size as much as possible.
  */
 static uint32_t g_io_queue_size = UINT16_MAX;
+static bool g_ktls;
+static uint32_t g_tls_version;
 
 /* When user specifies -Q, some error messages are rate limited.  When rate
  * limited, we only print the error message every g_quiet_count times the
@@ -1775,6 +1777,9 @@ static void usage(char *program_name)
 	printf("\t[--transport-stats dump transport statistics]\n");
 	printf("\t[--iova-mode <mode> specify DPDK IOVA mode: va|pa]\n");
 	printf("\t[--io-queue-size <val> size of NVMe IO queue. Default: maximum allowed by controller]\n");
+	printf("\t[--disable-ktls disable Kernel TLS. Default for posix impl]\n");
+	printf("\t[--enable-ktls enable Kernel TLS]\n");
+	printf("\t[--tls-version <val> TLS version to use. Default: v1.3]\n");
 }
 
 static void
@@ -2267,6 +2272,10 @@ static const struct option g_perf_cmdline_opts[] = {
 	{"iova-mode", required_argument, NULL, PERF_IOVA_MODE},
 #define PERF_IO_QUEUE_SIZE	259
 	{"io-queue-size", required_argument, NULL, PERF_IO_QUEUE_SIZE},
+#define PERF_ENABLE_KTLS	260
+	{"enable-ktls", no_argument, NULL, PERF_ENABLE_KTLS},
+#define PERF_TLS_VERSION	261
+	{"tls-version", required_argument, NULL, PERF_TLS_VERSION},
 	/* Should be the last element */
 	{0, 0, 0, 0}
 };
@@ -2446,6 +2455,23 @@ parse_args(int argc, char **argv, struct spdk_env_opts *env_opts)
 			break;
 		case PERF_ENABLE_VMD:
 			g_vmd = true;
+			break;
+		case PERF_DISABLE_KTLS:
+			perf_set_sock_opts(optarg, "ktls", false);
+			g_ktls = false;
+			break;
+		case PERF_ENABLE_KTLS:
+			perf_set_sock_opts(optarg, "ktls", true);
+			g_ktls = true;
+			break;
+		case PERF_TLS_VERSION:
+			errno = 0;
+			g_tls_version = strtol(optarg, &endptr);
+			if (errno || optarg == endptr || g_tls_version < 0) {
+				fprintf(stderr, "Illegal tls version value %s\n", optarg);
+				return 1;
+			}
+			perf_set_sock_opts(optarg, "tls_version", g_tls_version);
 			break;
 		case PERF_DISABLE_ZCOPY:
 			perf_set_sock_zcopy(optarg, false);
