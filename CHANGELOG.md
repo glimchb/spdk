@@ -23,6 +23,9 @@ Calculate num_md_pages from num_md_pages_per_cluster_ratio, and pass it to spdk_
 
 ### rpc
 
+Added `enable_tls` parameters to `bdev_nvme_attach_controller` RPC in order enable
+SSL socket implementation of TCP connection.
+
 New options `enable_ktls` and `tls_version` were added to the `sock_impl_set_options` structure.
 New options `psk_key` and `psk_identity` were added to the `sock_impl_set_options` structure.
 
@@ -52,6 +55,9 @@ Added SPDK_NVME_TRANSPORT_CUSTOM_FABRICS to enum spdk_nvme_transport_type to sup
 fabric transport. SPDK_NVME_TRANSPORT_CUSTOM was intended to be non-fabric custom transport.
 
 Added a new function `spdk_nvme_ns_cmd_verify` to submit a Verify Command to a Namespace.
+
+The `spdk_nvme_ctrlr_opts` struct has been extended with new field `tls` which allows
+to configure SSL socket implementation. Applicable for TCP transport only.
 
 ## v22.05
 

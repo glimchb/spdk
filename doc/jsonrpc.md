@@ -3126,6 +3126,7 @@ ctrlr_loss_timeout_sec     | Optional | number      | Time to wait until ctrlr i
 reconnect_delay_sec        | Optional | number      | Time to delay a reconnect trial. 0 means no reconnect.
 fast_io_fail_timeout_sec   | Optional | number      | Time to wait until ctrlr is reconnected before failing I/O to ctrlr. 0 means no such timeout.
 disable_auto_failback      | Optional | boolean     | Disable automatic failback. The RPC bdev_nvme_set_preferred_path can be used to do manual failback.
+enable_tls                 | Optional | boolean     | Enable SSL socket implementation for TCP only.
 
 #### Example
 
@@ -3242,6 +3243,7 @@ num_io_queues              | Optional | uint32_t    | The number of IO queues to
 ctrlr_loss_timeout_sec     | Optional | number      | Time to wait until ctrlr is reconnected before deleting ctrlr.  -1 means infinite reconnects. 0 means no reconnect.
 reconnect_delay_sec        | Optional | number      | Time to delay a reconnect trial. 0 means no reconnect.
 fast_io_fail_timeout_sec   | Optional | number      | Time to wait until ctrlr is reconnected before failing I/O to ctrlr. 0 means no such timeout.
+enable_tls                 | Optional | bool        | Enable TCP SSL socket imlplementation.
 
 #### Example
 

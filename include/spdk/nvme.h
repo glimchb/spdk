@@ -224,13 +224,6 @@ struct spdk_nvme_ctrlr_opts {
 	uint16_t admin_queue_size;
 
 	/**
-	 * The size of spdk_nvme_ctrlr_opts according to the caller of this library is used for ABI
-	 * compatibility.  The library uses this field to know how many fields in this
-	 * structure are valid. And the library will populate any remaining fields with default values.
-	 */
-	size_t opts_size;
-
-	/**
 	 * The amount of time to spend before timing out during fabric connect on qpairs associated with
 	 * this controller in microseconds.
 	 */
@@ -243,6 +236,18 @@ struct spdk_nvme_ctrlr_opts {
 	 * Default is `false` (ANA log page is read).
 	 */
 	bool disable_read_ana_log_page;
+
+	/**
+	 * Enable SSL socket implemntatino for NVMe/TCP only.
+	 */
+	bool enable_tls;
+
+	/**
+	 * The size of spdk_nvme_ctrlr_opts according to the caller of this library is used for ABI
+	 * compatibility.  The library uses this field to know how many fields in this
+	 * structure are valid. And the library will populate any remaining fields with default values.
+	 */
+	size_t opts_size;
 };
 
 /**

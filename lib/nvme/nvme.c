@@ -961,6 +961,7 @@ nvme_ctrlr_opts_init(struct spdk_nvme_ctrlr_opts *opts,
 	SET_FIELD(admin_queue_size);
 	SET_FIELD(fabrics_connect_timeout_us);
 	SET_FIELD(disable_read_ana_log_page);
+	SET_FIELD(enable_tls);
 
 	/* Do not remove this statement. When you add a new field, please do update this
 	 * assert with the correct size. And do not forget to add a new SET_FIELD statement

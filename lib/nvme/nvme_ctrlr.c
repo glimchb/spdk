@@ -232,6 +232,7 @@ spdk_nvme_ctrlr_get_default_ctrlr_opts(struct spdk_nvme_ctrlr_opts *opts, size_t
 	SET_FIELD(admin_queue_size, DEFAULT_ADMIN_QUEUE_SIZE);
 	SET_FIELD(fabrics_connect_timeout_us, NVME_FABRIC_CONNECT_COMMAND_TIMEOUT);
 	SET_FIELD(disable_read_ana_log_page, false);
+	SET_FIELD(enable_tls, false);
 
 #undef FIELD_OK
 #undef SET_FIELD

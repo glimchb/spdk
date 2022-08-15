@@ -231,6 +231,7 @@ static const struct spdk_json_object_decoder rpc_bdev_nvme_attach_controller_dec
 	{"ctrlr_loss_timeout_sec", offsetof(struct rpc_bdev_nvme_attach_controller, bdev_opts.ctrlr_loss_timeout_sec), spdk_json_decode_int32, true},
 	{"reconnect_delay_sec", offsetof(struct rpc_bdev_nvme_attach_controller, bdev_opts.reconnect_delay_sec), spdk_json_decode_uint32, true},
 	{"fast_io_fail_timeout_sec", offsetof(struct rpc_bdev_nvme_attach_controller, bdev_opts.fast_io_fail_timeout_sec), spdk_json_decode_uint32, true},
+	{"enable_tls", offsetof(struct rpc_bdev_nvme_attach_controller, drv_opts.enable_tls), spdk_json_decode_bool, true},
 };
 
 #define NVME_MAX_BDEVS_PER_RPC 128

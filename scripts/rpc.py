@@ -509,7 +509,8 @@ if __name__ == "__main__":
                                        ctrlr_loss_timeout_sec=args.ctrlr_loss_timeout_sec,
                                        reconnect_delay_sec=args.reconnect_delay_sec,
                                        fast_io_fail_timeout_sec=args.fast_io_fail_timeout_sec,
-                                       disable_auto_failback=args.disable_auto_failback)
+                                       disable_auto_failback=args.disable_auto_failback,
+                                       enable_tls=args.enable_tls)
 
     p = subparsers.add_parser('bdev_nvme_set_options',
                               help='Set options for the bdev nvme type. This is startup command.')
@@ -574,6 +575,8 @@ if __name__ == "__main__":
                    help="""Disable automatic failback. bdev_nvme_set_preferred_path can be used to do manual failback.
                    By default, immediately failback to the preferred I/O path if it restored.""",
                    action='store_true')
+    p.add_argument('-t', '--enable-tls',
+                   help='Enable SSL socket implementation for TCP only', action='store_true')
 
     p.set_defaults(func=bdev_nvme_set_options)
 
@@ -608,7 +611,8 @@ if __name__ == "__main__":
                                                          num_io_queues=args.num_io_queues,
                                                          ctrlr_loss_timeout_sec=args.ctrlr_loss_timeout_sec,
                                                          reconnect_delay_sec=args.reconnect_delay_sec,
-                                                         fast_io_fail_timeout_sec=args.fast_io_fail_timeout_sec))
+                                                         fast_io_fail_timeout_sec=args.fast_io_fail_timeout_sec,
+                                                         enable_tls=args.enable_tls))
 
     p = subparsers.add_parser('bdev_nvme_attach_controller', help='Add bdevs with nvme backend')
     p.add_argument('-b', '--name', help="Name of the NVMe controller, prefix for each bdev name", required=True)
@@ -659,6 +663,8 @@ if __name__ == "__main__":
                    If fast_io_fail_timeout_sec is not zero, it has to be not less than reconnect_delay_sec and
                    less than ctrlr_loss_timeout_sec if ctrlr_loss_timeout_sec is not -1.""",
                    type=int)
+    p.add_argument('-z', '--enable-tls',
+                   help='Enable TCP SSL socket implementation.', action='store_true')
     p.set_defaults(func=bdev_nvme_attach_controller)
 
     def bdev_nvme_get_controllers(args):

@@ -752,6 +752,9 @@ nvmf_tcp_listen(struct spdk_nvmf_transport *transport, const struct spdk_nvme_tr
 	struct spdk_nvmf_tcp_port *port;
 	int trsvcid_int;
 	uint8_t adrfam;
+	char *sock_impl_name;
+	struct spdk_sock_impl_opts impl_opts;
+	size_t impl_opts_size = sizeof(impl_opts);
 	struct spdk_sock_opts opts;
 
 	if (!strlen(trid->trsvcid)) {
@@ -773,12 +776,23 @@ nvmf_tcp_listen(struct spdk_nvmf_transport *transport, const struct spdk_nvme_tr
 		return -ENOMEM;
 	}
 
+	/* TODO: impl_opts.enable_tls */
+	sock_impl_name = ttransport->tcp_opts.sock_priority ? "ssl" : NULL;
+
+	spdk_sock_impl_get_opts(sock_impl_name, &impl_opts, &impl_opts_size);
+	/* TODO: impl_opts.enable_ktls = false; */
+	/* TODO: impl_opts.tls_version = SPDK_TLS_VERSION_1_3; */
+	impl_opts.psk_key = "1234567890ABCDEF";
+	impl_opts.psk_identity = "psk.spdk.io";
+
 	port->trid = trid;
 	opts.opts_size = sizeof(opts);
 	spdk_sock_get_default_opts(&opts);
 	opts.priority = ttransport->tcp_opts.sock_priority;
+	opts.impl_opts = &impl_opts;
+	opts.impl_opts_size = sizeof(impl_opts);
 	port->listen_sock = spdk_sock_listen_ext(trid->traddr, trsvcid_int,
-			    NULL, &opts);
+			    sock_impl_name, &opts);
 	if (port->listen_sock == NULL) {
 		SPDK_ERRLOG("spdk_sock_listen(%s, %d) failed: %s (%d)\n",
 			    trid->traddr, trsvcid_int,

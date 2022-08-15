@@ -118,6 +118,7 @@ static struct spdk_bdev_nvme_opts g_opts = {
 	.reconnect_delay_sec = 0,
 	.fast_io_fail_timeout_sec = 0,
 	.disable_auto_failback = false,
+	.enable_tls = false,
 };
 
 #define NVME_HOTPLUG_POLL_PERIOD_MAX			10000000ULL
@@ -6547,6 +6548,7 @@ bdev_nvme_opts_config_json(struct spdk_json_write_ctx *w)
 	spdk_json_write_named_int32(w, "ctrlr_loss_timeout_sec", g_opts.ctrlr_loss_timeout_sec);
 	spdk_json_write_named_uint32(w, "reconnect_delay_sec", g_opts.reconnect_delay_sec);
 	spdk_json_write_named_uint32(w, "fast_io_fail_timeout_sec", g_opts.fast_io_fail_timeout_sec);
+	spdk_json_write_named_bool(w, "enable_tls", g_opts.enable_tls);
 	spdk_json_write_object_end(w);
 
 	spdk_json_write_object_end(w);

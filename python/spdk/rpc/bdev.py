@@ -474,7 +474,7 @@ def bdev_nvme_set_options(client, action_on_timeout=None, timeout_us=None, timeo
                           nvme_adminq_poll_period_us=None, nvme_ioq_poll_period_us=None, io_queue_requests=None,
                           delay_cmd_submit=None, transport_retry_count=None, bdev_retry_count=None,
                           transport_ack_timeout=None, ctrlr_loss_timeout_sec=None, reconnect_delay_sec=None,
-                          fast_io_fail_timeout_sec=None, disable_auto_failback=None):
+                          fast_io_fail_timeout_sec=None, disable_auto_failback=None, enable_tls=None):
     """Set options for the bdev nvme. This is startup command.
 
     Args:
@@ -512,7 +512,7 @@ def bdev_nvme_set_options(client, action_on_timeout=None, timeout_us=None, timeo
         This can be overridden by bdev_nvme_attach_controller. (optional)
         disable_auto_failback: Disable automatic failback. bdev_nvme_set_preferred_path can be used to do manual failback.
         By default, immediately failback to the preferred I/O path if it is restored. (optional)
-
+        enable_tls: Enable SSL socket imple,mentation for TCP only.
     """
     params = {}
 
@@ -577,6 +577,9 @@ def bdev_nvme_set_options(client, action_on_timeout=None, timeout_us=None, timeo
     if disable_auto_failback is not None:
         params['disable_auto_failback'] = disable_auto_failback
 
+    if enable_tls is not None:
+        params['enable_tls'] = enable_tls
+
     return client.call('bdev_nvme_set_options', params)
 
 
@@ -600,7 +603,7 @@ def bdev_nvme_attach_controller(client, name, trtype, traddr, adrfam=None, trsvc
                                 hostsvcid=None, prchk_reftag=None, prchk_guard=None,
                                 hdgst=None, ddgst=None, fabrics_timeout=None, multipath=None, num_io_queues=None,
                                 ctrlr_loss_timeout_sec=None, reconnect_delay_sec=None,
-                                fast_io_fail_timeout_sec=None):
+                                fast_io_fail_timeout_sec=None, enable_tls=None):
     """Construct block device for each NVMe namespace in the attached controller.
 
     Args:
@@ -635,6 +638,7 @@ def bdev_nvme_attach_controller(client, name, trtype, traddr, adrfam=None, trsvc
         0 means no such timeout.
         If fast_io_fail_timeout_sec is not zero, it has to be not less than reconnect_delay_sec and less than
         ctrlr_loss_timeout_sec if ctrlr_loss_timeout_sec is not -1. (optional)
+        enable_tls: Enable TCP SSL socket implementation (optional)
 
     Returns:
         Names of created block devices.
@@ -693,6 +697,9 @@ def bdev_nvme_attach_controller(client, name, trtype, traddr, adrfam=None, trsvc
 
     if fast_io_fail_timeout_sec is not None:
         params['fast_io_fail_timeout_sec'] = fast_io_fail_timeout_sec
+
+    if enable_tls:
+        params['enable_tls'] = enable_tls
 
     return client.call('bdev_nvme_attach_controller', params)
 
