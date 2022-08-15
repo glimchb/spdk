@@ -6913,6 +6913,7 @@ disable_mappable_bar0       | Optional | boolean | disable client mmap() of BAR0
 disable_adaptive_irq        | Optional | boolean | Disable adaptive interrupt feature (VFIO-USER only)
 disable_shadow_doorbells    | Optional | boolean | disable shadow doorbell support (VFIO-USER only)
 zcopy                       | Optional | boolean | Use zero-copy operations if the underlying bdev supports them
+psk                         | Optional | string  | PSK in hexadecimal digits, e.g. 1234567890ABCDEF (TCP only)
 
 #### Example
 

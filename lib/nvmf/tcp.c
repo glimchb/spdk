@@ -322,6 +322,7 @@ struct tcp_transport_opts {
 	bool		c2h_success;
 	uint16_t	control_msg_num;
 	uint32_t	sock_priority;
+	char psk[200]; /* must match spdk_nvme_ctrlr_opts */
 };
 
 struct spdk_nvmf_tcp_transport {
@@ -348,6 +349,10 @@ static const struct spdk_json_object_decoder tcp_transport_opts_decoder[] = {
 	{
 		"sock_priority", offsetof(struct tcp_transport_opts, sock_priority),
 		spdk_json_decode_uint32, true
+	},
+	{
+		"psk", offsetof(struct tcp_transport_opts, psk),
+		spdk_json_decode_string, true
 	},
 };
 
@@ -559,6 +564,7 @@ nvmf_tcp_dump_opts(struct spdk_nvmf_transport *transport, struct spdk_json_write
 	ttransport = SPDK_CONTAINEROF(transport, struct spdk_nvmf_tcp_transport, transport);
 	spdk_json_write_named_bool(w, "c2h_success", ttransport->tcp_opts.c2h_success);
 	spdk_json_write_named_uint32(w, "sock_priority", ttransport->tcp_opts.sock_priority);
+	spdk_json_write_named_string(w, "psk", ttransport->tcp_opts.psk);
 }
 
 static int
@@ -601,6 +607,7 @@ nvmf_tcp_create(struct spdk_nvmf_transport_opts *opts)
 	ttransport->tcp_opts.c2h_success = SPDK_NVMF_TCP_DEFAULT_SUCCESS_OPTIMIZATION;
 	ttransport->tcp_opts.sock_priority = SPDK_NVMF_TCP_DEFAULT_SOCK_PRIORITY;
 	ttransport->tcp_opts.control_msg_num = SPDK_NVMF_TCP_DEFAULT_CONTROL_MSG_NUM;
+	memset(ttransport->tcp_opts.psk, 0, sizeof(ttransport->tcp_opts.psk));
 	if (opts->transport_specific != NULL &&
 	    spdk_json_decode_object_relaxed(opts->transport_specific, tcp_transport_opts_decoder,
 					    SPDK_COUNTOF(tcp_transport_opts_decoder),
@@ -752,6 +759,9 @@ nvmf_tcp_listen(struct spdk_nvmf_transport *transport, const struct spdk_nvme_tr
 	struct spdk_nvmf_tcp_port *port;
 	int trsvcid_int;
 	uint8_t adrfam;
+	char *sock_impl_name;
+	struct spdk_sock_impl_opts impl_opts;
+	size_t impl_opts_size = sizeof(impl_opts);
 	struct spdk_sock_opts opts;
 
 	if (!strlen(trid->trsvcid)) {
@@ -774,12 +784,28 @@ nvmf_tcp_listen(struct spdk_nvmf_transport *transport, const struct spdk_nvme_tr
 	}
 
 	port->trid = trid;
+
+	sock_impl_name = ttransport->tcp_opts.psk[0] ? "ssl" : NULL;
+	SPDK_DEBUGLOG(nvmf_tcp, "sock_impl_name is %s\n", sock_impl_name);
+
+	spdk_sock_impl_get_opts(sock_impl_name, &impl_opts, &impl_opts_size);
+	impl_opts.enable_ktls = false;
+	impl_opts.tls_version = SPDK_TLS_VERSION_1_3;
+	/* TODO: Change current PSK HEX string format to TLS PSK Interchange Format */
+	impl_opts.psk_key = ttransport->tcp_opts.psk;
+	/* TODO: generate identity from hostnqn instead */
+	impl_opts.psk_identity = "psk.spdk.io";
+
 	opts.opts_size = sizeof(opts);
 	spdk_sock_get_default_opts(&opts);
 	opts.priority = ttransport->tcp_opts.sock_priority;
-	/* TODO: also add impl_opts like on the initiator side */
+	if (sock_impl_name) {
+		opts.impl_opts = &impl_opts;
+		opts.impl_opts_size = sizeof(impl_opts);
+	}
+
 	port->listen_sock = spdk_sock_listen_ext(trid->traddr, trsvcid_int,
-			    NULL, &opts);
+			    sock_impl_name, &opts);
 	if (port->listen_sock == NULL) {
 		SPDK_ERRLOG("spdk_sock_listen(%s, %d) failed: %s (%d)\n",
 			    trid->traddr, trsvcid_int,

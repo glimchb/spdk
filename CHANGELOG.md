@@ -43,6 +43,9 @@ Calculate num_md_pages from num_md_pages_per_cluster_ratio, and pass it to spdk_
 
 ### rpc
 
+Added `psk` parameter to `nvmf_create_transport` RPC in order to enable SSL socket implementation
+of TCP connection and set the PSK. Applicable for TCP transport only.
+
 Added `psk` parameter to `bdev_nvme_attach_controller` RPC in order to enable SSL socket implementation
 of TCP connection and set the PSK. Applicable for TCP transport only.
 
