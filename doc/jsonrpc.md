@@ -3634,6 +3634,7 @@ attach_timeout_ms          | Optional | number      | Time to wait until the dis
 ctrlr_loss_timeout_sec     | Optional | number      | Time to wait until ctrlr is reconnected before deleting ctrlr.  -1 means infinite reconnects. 0 means no reconnect.
 reconnect_delay_sec        | Optional | number      | Time to delay a reconnect trial. 0 means no reconnect.
 fast_io_fail_timeout_sec   | Optional | number      | Time to wait until ctrlr is reconnected before failing I/O to ctrlr. 0 means no such timeout.
+use_mdns                   | Optional | bool        | Use mDNS to docsover CDC or DDC instead of traddr
 
 #### Example
 

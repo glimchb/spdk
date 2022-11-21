@@ -774,6 +774,7 @@ if __name__ == "__main__":
                                            attach_timeout_ms=args.attach_timeout_ms,
                                            ctrlr_loss_timeout_sec=args.ctrlr_loss_timeout_sec,
                                            reconnect_delay_sec=args.reconnect_delay_sec,
+                                           use_mdns=args.use_mdns,
                                            fast_io_fail_timeout_sec=args.fast_io_fail_timeout_sec)
 
     p = subparsers.add_parser('bdev_nvme_start_discovery', help='Start automatic discovery')
@@ -813,6 +814,9 @@ if __name__ == "__main__":
                    If fast_io_fail_timeout_sec is not zero, it has to be not less than reconnect_delay_sec and
                    less than ctrlr_loss_timeout_sec if ctrlr_loss_timeout_sec is not -1.""",
                    type=int)
+    p.add_argument('-m', '--use-mdns', action='store_true',
+                   help='Use mDNS instead of traddr to connect to CDC or DDC for auto discovery per TP8009')
+
     p.set_defaults(func=bdev_nvme_start_discovery)
 
     def bdev_nvme_stop_discovery(args):

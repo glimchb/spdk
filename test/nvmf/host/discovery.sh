@@ -154,6 +154,12 @@ NOT $rpc_py -s $HOST_SOCK bdev_nvme_start_discovery -b nvme_second -t $TEST_TRAN
 	-a $NVMF_FIRST_TARGET_IP -s $((DISCOVERY_PORT + 1)) -f ipv4 -q $HOST_NQN -T 3000
 [[ $(get_discovery_ctrlrs) == "nvme" ]]
 
+# Testing mDNS dicovery without address
+$rpc_py -s $HOST_SOCK bdev_nvme_start_discovery -b nvme -t $TEST_TRANSPORT \
+	-s $DISCOVERY_PORT -f ipv4 -q $HOST_NQN -w --use-mdns
+[[ $(get_discovery_ctrlrs) == "nvme" ]]
+[[ $(get_bdev_list) == "nvme0n1 nvme0n2" ]]
+
 trap - SIGINT SIGTERM EXIT
 
 kill $hostpid

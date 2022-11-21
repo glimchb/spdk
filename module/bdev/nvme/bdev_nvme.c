@@ -29,6 +29,15 @@
 #include "spdk_internal/usdt.h"
 #include "spdk_internal/trace_defs.h"
 
+#ifdef SPDK_CONFIG_AVAHI
+#include <avahi-client/client.h>
+#include <avahi-client/lookup.h>
+#include <avahi-common/simple-watch.h>
+#include <avahi-common/malloc.h>
+#include <avahi-common/error.h>
+// #error Unsupported hardware
+#endif
+
 #define SPDK_BDEV_NVME_DEFAULT_DELAY_CMD_SUBMIT true
 #define SPDK_BDEV_NVME_DEFAULT_KEEP_ALIVE_TIMEOUT_IN_MS	(10000)
 
@@ -5037,6 +5046,7 @@ struct discovery_ctx {
 	TAILQ_HEAD(, discovery_entry_ctx)	discovery_entry_ctxs;
 	int					rc;
 	bool					wait_for_attach;
+	bool					use_mdns;
 	uint64_t				timeout_ticks;
 	/* Denotes that the discovery service is being started. We're waiting
 	 * for the initial connection to the discovery controller to be
@@ -5081,6 +5091,182 @@ free_discovery_ctx(struct discovery_ctx *ctx)
 	free(ctx->name);
 	free(ctx);
 }
+
+#ifdef SPDK_CONFIG_AVAHI
+
+// TODO: what is the thread/poller avahi is running in ? need a new one ?
+static AvahiSimplePoll *g_avahi_simple_poll = NULL;
+static struct spdk_poller *g_avahi_poller;
+
+static int
+bdev_nvme_avahi_iterate(void *arg)
+{
+	SPDK_ERRLOG("=====boris 1 bdev_nvme_avahi_iterate\n");
+
+	if (g_avahi_simple_poll == NULL) {
+		spdk_poller_unregister(&g_avahi_poller);
+		return SPDK_POLLER_IDLE;
+	}
+
+	if (avahi_simple_poll_iterate(g_avahi_simple_poll, -1) != -EAGAIN) {
+		g_avahi_simple_poll = NULL;
+		spdk_poller_unregister(&g_avahi_poller);
+	}
+
+	return SPDK_POLLER_BUSY;
+}
+
+static void
+resolve_callback(
+    AvahiServiceResolver *r,
+    AVAHI_GCC_UNUSED AvahiIfIndex interface,
+    AVAHI_GCC_UNUSED AvahiProtocol protocol,
+    AvahiResolverEvent event,
+    const char *name,
+    const char *type,
+    const char *domain,
+    const char *host_name,
+    const AvahiAddress *address,
+    uint16_t port,
+    AvahiStringList *txt,
+    AvahiLookupResultFlags flags,
+    AVAHI_GCC_UNUSED void* userdata) {
+
+    assert(r);
+
+	SPDK_ERRLOG("=====boris 2 resolve_callback\n");
+
+    /* Called whenever a service has been resolved successfully or timed out */
+
+    switch (event) {
+        case AVAHI_RESOLVER_FAILURE:
+            fprintf(stderr, "(Resolver) Failed to resolve service '%s' of type '%s' in domain '%s': %s\n", name, type, domain, avahi_strerror(avahi_client_errno(avahi_service_resolver_get_client(r))));
+            break;
+
+        case AVAHI_RESOLVER_FOUND: {
+            char a[AVAHI_ADDRESS_STR_MAX], *t;
+
+            fprintf(stderr, "Service '%s' of type '%s' in domain '%s':\n", name, type, domain);
+
+            avahi_address_snprint(a, sizeof(a), address);
+            t = avahi_string_list_to_string(txt);
+            fprintf(stderr,
+                    "\t%s:%u (%s)\n"
+                    "\tTXT=%s\n"
+                    "\tcookie is %u\n"
+                    "\tis_local: %i\n"
+                    "\tour_own: %i\n"
+                    "\twide_area: %i\n"
+                    "\tmulticast: %i\n"
+                    "\tcached: %i\n",
+                    host_name, port, a,
+                    t,
+                    avahi_string_list_get_service_cookie(txt),
+                    !!(flags & AVAHI_LOOKUP_RESULT_LOCAL),
+                    !!(flags & AVAHI_LOOKUP_RESULT_OUR_OWN),
+                    !!(flags & AVAHI_LOOKUP_RESULT_WIDE_AREA),
+                    !!(flags & AVAHI_LOOKUP_RESULT_MULTICAST),
+                    !!(flags & AVAHI_LOOKUP_RESULT_CACHED));
+
+			/* Example:
+			(Browser) NEW: service '192-168-122-217:11/22/22:17:21:06' of type '_nvme-disc._tcp' in domain 'local'
+			(Browser) CACHE_EXHAUSTED
+			(Browser) ALL_FOR_NOW
+			Service '192-168-122-217:11/22/22:17:21:06' of type '_nvme-disc._tcp' in domain 'local':
+					192-168-122-217.local:8009 (192.168.122.217)
+					TXT="NQN=nqn.1988-11.com.dell:SFSS:1:20221122170722e8" "p=tcp"
+					cookie is 0
+					is_local: 0
+					our_own: 0
+					wide_area: 0
+					multicast: 1
+					cached: 1
+			*/
+
+			// TODO: now we have dicovered trid: 
+			//			- traddr = a
+			//			- trsvcid = port 
+			//			- transport = txt.get('p', 'tcp')
+			// 			- subsysnqn = txt.get('NQN', defs.WELL_KNOWN_DISC_NQN)
+			//			
+			//	TODO: can we now create a new context for discovery poller ?
+			// 			discovery_entry_ctx = create_discovery_entry_ctx(ctx, trid);
+			//			TAILQ_INSERT_TAIL(&ctx->discovery_entry_ctxs, discovery_entry_ctx, tailq);
+			//			spdk_thread_send_msg(g_bdev_nvme_init_thread, start_discovery_poller, ctx);
+			//	
+			//  TODO: consider build_trid_from_log_page_entry() or new func like this
+
+            avahi_free(t);
+        }
+    }
+
+    avahi_service_resolver_free(r);
+}
+
+static void
+browse_callback(
+    AvahiServiceBrowser *b,
+    AvahiIfIndex interface,
+    AvahiProtocol protocol,
+    AvahiBrowserEvent event,
+    const char *name,
+    const char *type,
+    const char *domain,
+    AVAHI_GCC_UNUSED AvahiLookupResultFlags flags,
+    void* userdata) {
+
+    AvahiClient *c = userdata;
+    assert(b);
+
+	SPDK_ERRLOG("=====boris 3 browse_callback\n");
+
+    /* Called whenever a new services becomes available on the LAN or is removed from the LAN */
+
+    switch (event) {
+        case AVAHI_BROWSER_FAILURE:
+
+            fprintf(stderr, "(Browser) %s\n", avahi_strerror(avahi_client_errno(avahi_service_browser_get_client(b))));
+            avahi_simple_poll_quit(g_avahi_simple_poll);
+            return;
+
+        case AVAHI_BROWSER_NEW:
+            fprintf(stderr, "(Browser) NEW: service '%s' of type '%s' in domain '%s'\n", name, type, domain);
+
+            /* We ignore the returned resolver object. In the callback
+               function we free it. If the server is terminated before
+               the callback function is called the server will free
+               the resolver for us. */
+
+            if (!(avahi_service_resolver_new(c, interface, protocol, name, type, domain, AVAHI_PROTO_UNSPEC, 0, resolve_callback, c)))
+                fprintf(stderr, "Failed to resolve service '%s': %s\n", name, avahi_strerror(avahi_client_errno(c)));
+
+            break;
+
+        case AVAHI_BROWSER_REMOVE:
+            fprintf(stderr, "(Browser) REMOVE: service '%s' of type '%s' in domain '%s'\n", name, type, domain);
+            break;
+
+        case AVAHI_BROWSER_ALL_FOR_NOW:
+        case AVAHI_BROWSER_CACHE_EXHAUSTED:
+            fprintf(stderr, "(Browser) %s\n", event == AVAHI_BROWSER_CACHE_EXHAUSTED ? "CACHE_EXHAUSTED" : "ALL_FOR_NOW");
+            break;
+    }
+}
+
+static void
+avahi_client_callback(AvahiClient *c, AvahiClientState state, AVAHI_GCC_UNUSED void * userdata) {
+    assert(c);
+
+	SPDK_ERRLOG("=====boris 4 avahi_client_callback\n");
+
+    /* Called whenever the client or server state changes */
+
+    if (state == AVAHI_CLIENT_FAILURE) {
+        fprintf(stderr, "Server connection failure: %s\n", avahi_strerror(avahi_client_errno(c)));
+        avahi_simple_poll_quit(g_avahi_simple_poll);
+    }
+}
+#endif
 
 static void
 discovery_complete(struct discovery_ctx *ctx)
@@ -5444,6 +5630,8 @@ discovery_poller(void *arg)
 		ctx->entry_ctx_in_use = TAILQ_FIRST(&ctx->discovery_entry_ctxs);
 		TAILQ_REMOVE(&ctx->discovery_entry_ctxs, ctx->entry_ctx_in_use, tailq);
 		trid = &ctx->entry_ctx_in_use->trid;
+		// TODO: Now we have trid, so we can try to connect...
+		//		 So what happens with avahi ? if (ctx->use_mdns) ?
 		ctx->probe_ctx = spdk_nvme_connect_async(trid, &ctx->drv_opts, discovery_attach_cb);
 		if (ctx->probe_ctx) {
 			spdk_poller_unregister(&ctx->poller);
@@ -5543,6 +5731,63 @@ bdev_nvme_start_discovery(struct spdk_nvme_transport_id *trid,
 		}
 	}
 
+	// TODO: if mDNS parameter was used, then start AVAHI poller if not used yet...
+
+#ifdef SPDK_CONFIG_AVAHI
+	// AVAHI init - only do once...
+    AvahiClient *client = NULL;
+    AvahiServiceBrowser *sb = NULL;
+    int error;
+    int ret = 1;
+
+    /* Allocate main loop object */
+    if (!(g_avahi_simple_poll = avahi_simple_poll_new())) {
+        fprintf(stderr, "Failed to create simple poll object.\n");
+        goto fail;
+    }
+
+    /* Allocate a new client */
+    client = avahi_client_new(avahi_simple_poll_get(g_avahi_simple_poll), 0, avahi_client_callback, NULL, &error);
+
+    /* Check wether creating the client object succeeded */
+    if (!client) {
+        fprintf(stderr, "Failed to create client: %s\n", avahi_strerror(error));
+        goto fail;
+    }
+
+    /* Create the service browser */
+	// TODO: change to "_nvme-disc._tcp"
+    if (!(sb = avahi_service_browser_new(client, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, "_Redfish._tcp", NULL, 0, browse_callback, client))) {
+        fprintf(stderr, "Failed to create service browser: %s\n", avahi_strerror(avahi_client_errno(client)));
+        goto fail;
+    }
+
+	SPDK_ERRLOG("=====boris 5 bdev_nvme_start_discovery\n");
+
+    /* Run the main loop */
+    // avahi_simple_poll_loop(g_avahi_simple_poll); // this is doing while(true) loop
+	// if (use_mdns) {
+		assert(g_avahi_poller == NULL);
+		g_avahi_poller = SPDK_POLLER_REGISTER(bdev_nvme_avahi_iterate, NULL, 1000);
+	// }
+
+    ret = 0;
+
+fail:
+
+    /* Cleanup things 
+    if (sb)
+        avahi_service_browser_free(sb);
+
+    if (client)
+        avahi_client_free(client);
+
+    if (g_avahi_simple_poll)
+        avahi_simple_poll_free(g_avahi_simple_poll);
+	*/
+#endif
+
+
 	ctx = calloc(1, sizeof(*ctx));
 	if (ctx == NULL) {
 		return -ENOMEM;
@@ -5579,6 +5824,10 @@ bdev_nvme_start_discovery(struct spdk_nvme_transport_id *trid,
 		free_discovery_ctx(ctx);
 		return -ENOMEM;
 	}
+	// TODO: in case of use_mdns the context should not be created here
+	//		 when avahi discovers new TRID, it should create a context
+	//		 in that callback, see resolve_callback()
+	// ctx->use_mdns = ctx->drv_opts.use_mdns;
 	discovery_entry_ctx = create_discovery_entry_ctx(ctx, trid);
 	if (discovery_entry_ctx == NULL) {
 		DISCOVERY_ERRLOG(ctx, "could not allocate new entry_ctx\n");
@@ -6728,6 +6977,7 @@ bdev_nvme_discovery_config_json(struct spdk_json_write_ctx *w, struct discovery_
 	spdk_json_write_named_uint32(w, "reconnect_delay_sec", ctx->bdev_opts.reconnect_delay_sec);
 	spdk_json_write_named_uint32(w, "fast_io_fail_timeout_sec",
 				     ctx->bdev_opts.fast_io_fail_timeout_sec);
+	spdk_json_write_named_bool(w, "use_mdns", ctx->use_mdns);
 	spdk_json_write_object_end(w);
 
 	spdk_json_write_object_end(w);

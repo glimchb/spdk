@@ -814,7 +814,7 @@ def bdev_nvme_reset_controller(client, name):
 def bdev_nvme_start_discovery(client, name, trtype, traddr, adrfam=None, trsvcid=None,
                               hostnqn=None, wait_for_attach=None, ctrlr_loss_timeout_sec=None,
                               reconnect_delay_sec=None, fast_io_fail_timeout_sec=None,
-                              attach_timeout_ms=None):
+                              attach_timeout_ms=None, use_mdns=None):
     """Start discovery with the specified discovery subsystem
 
     Args:
@@ -840,6 +840,7 @@ def bdev_nvme_start_discovery(client, name, trtype, traddr, adrfam=None, trsvcid
         If fast_io_fail_timeout_sec is not zero, it has to be not less than reconnect_delay_sec and less than
         ctrlr_loss_timeout_sec if ctrlr_loss_timeout_sec is not -1. (optional)
         attach_timeout_ms: Time to wait until the discovery and all discovered NVM subsystems are attached (optional)
+        use_mdns: Instead of traddr, discover CDC or DDC via mDNS per TP8009 (optional)
     """
     params = {'name': name,
               'trtype': trtype,
@@ -868,6 +869,9 @@ def bdev_nvme_start_discovery(client, name, trtype, traddr, adrfam=None, trsvcid
 
     if fast_io_fail_timeout_sec is not None:
         params['fast_io_fail_timeout_sec'] = fast_io_fail_timeout_sec
+
+    if use_mdns:
+        params['use_mdns'] = True
 
     return client.call('bdev_nvme_start_discovery', params)
 

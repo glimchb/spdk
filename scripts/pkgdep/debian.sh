@@ -70,6 +70,10 @@ if [[ $INSTALL_RBD == "true" ]]; then
 	# Additional dependencies for RBD bdev in NVMe over Fabrics
 	apt-get install -y librados-dev librbd-dev
 fi
+if [[ $INSTALL_AVAHI == "true" ]]; then
+	# Additional dependencies for AVAHI
+	apt-get install -y libavahi-client-dev
+fi
 if [[ $INSTALL_RDMA == "true" ]]; then
 	# Additional dependencies for RDMA transport in NVMe over Fabrics
 	apt-get install -y libibverbs-dev librdmacm-dev

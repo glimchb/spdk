@@ -4,6 +4,9 @@
 
 ### bdev
 
+Added avahi support to bdev_nvme_start_discovery,
+per Nvme TP 8009 - Automated Discovery of Ethernet Discovery Controllers.
+
 Both of interleaved and separated metadata are now supported by the malloc bdev module.
 
 Protection information is now supported by the malloc bdev module.

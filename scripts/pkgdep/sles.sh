@@ -26,6 +26,10 @@ if [[ $INSTALL_RBD == "true" ]]; then
 	# Additional dependencies for RBD bdev in NVMe over Fabrics
 	zypper install -y librados-devel librbd-devel
 fi
+if [[ $INSTALL_AVAHI == "true" ]]; then
+	# Additional dependencies for AVAHI
+	zypper install -y avahi-devel
+fi
 if [[ $INSTALL_RDMA == "true" ]]; then
 	# Additional dependencies for RDMA transport in NVMe over Fabrics
 	zypper install -y rdma-core-devel

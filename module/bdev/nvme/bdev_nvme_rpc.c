@@ -1557,6 +1557,7 @@ struct rpc_bdev_nvme_start_discovery {
 	char *trsvcid;
 	char *hostnqn;
 	bool wait_for_attach;
+	bool use_mdns;
 	uint64_t attach_timeout_ms;
 	struct spdk_nvme_ctrlr_opts opts;
 	struct nvme_ctrlr_opts bdev_opts;
@@ -1585,6 +1586,7 @@ static const struct spdk_json_object_decoder rpc_bdev_nvme_start_discovery_decod
 	{"ctrlr_loss_timeout_sec", offsetof(struct rpc_bdev_nvme_start_discovery, bdev_opts.ctrlr_loss_timeout_sec), spdk_json_decode_int32, true},
 	{"reconnect_delay_sec", offsetof(struct rpc_bdev_nvme_start_discovery, bdev_opts.reconnect_delay_sec), spdk_json_decode_uint32, true},
 	{"fast_io_fail_timeout_sec", offsetof(struct rpc_bdev_nvme_start_discovery, bdev_opts.fast_io_fail_timeout_sec), spdk_json_decode_uint32, true},
+	{"use_mdns", offsetof(struct rpc_bdev_nvme_start_discovery, use_mdns), spdk_json_decode_bool, true},
 };
 
 struct rpc_bdev_nvme_start_discovery_ctx {
@@ -1685,6 +1687,12 @@ rpc_bdev_nvme_start_discovery(struct spdk_jsonrpc_request *request,
 
 	if (ctx->req.attach_timeout_ms != 0) {
 		ctx->req.wait_for_attach = true;
+	}
+
+	if (ctx->req.use_mdns && ctx->req.traddr) {
+		SPDK_ERRLOG("mDNS and traddr can't be used together\n");
+		spdk_jsonrpc_send_error_response_fmt(request, -EINVAL, "mDNS and traddr can't be used together");
+		goto cleanup;
 	}
 
 	ctx->request = request;
