@@ -818,7 +818,6 @@ ssl_sock_connect_loop(SSL_CTX *ctx, int fd, struct spdk_sock_impl_opts *impl_opt
 	}
 	SSL_set_fd(ssl, fd);
 	SSL_set_connect_state(ssl);
-	SSL_set_app_data(ssl, impl_opts);
 	SSL_set_psk_use_session_callback(ssl, posix_sock_psk_use_session_client_cb);
 	SPDK_DEBUGLOG(sock_posix, "SSL object creation finished: %p\n", ssl);
 	SPDK_DEBUGLOG(sock_posix, "%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
@@ -840,7 +839,6 @@ ssl_sock_accept_loop(SSL_CTX *ctx, int fd, struct spdk_sock_impl_opts *impl_opts
 	}
 	SSL_set_fd(ssl, fd);
 	SSL_set_accept_state(ssl);
-	SSL_set_app_data(ssl, impl_opts);
 	SSL_set_psk_find_session_callback(ssl, posix_sock_psk_find_session_server_cb);
 	SPDK_DEBUGLOG(sock_posix, "SSL object creation finished: %p\n", ssl);
 	SPDK_DEBUGLOG(sock_posix, "%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
@@ -1092,6 +1090,7 @@ retry:
 
 	if (ssl) {
 		sock->ssl = ssl;
+		SSL_set_app_data(ssl, &sock->base.impl_opts);
 	}
 
 	return &sock->base;
@@ -1184,6 +1183,7 @@ _posix_sock_accept(struct spdk_sock *_sock, bool enable_ssl)
 
 	if (ssl) {
 		new_sock->ssl = ssl;
+		SSL_set_app_data(ssl, &new_sock->base.impl_opts);
 	}
 
 	return &new_sock->base;
