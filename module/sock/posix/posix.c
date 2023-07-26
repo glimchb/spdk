@@ -809,9 +809,7 @@ err:
 static SSL *
 ssl_sock_connect_loop(SSL_CTX *ctx, int fd, struct spdk_sock_impl_opts *impl_opts)
 {
-	int rc;
 	SSL *ssl;
-	int ssl_get_error;
 
 	ssl = SSL_new(ctx);
 	if (!ssl) {
@@ -819,26 +817,11 @@ ssl_sock_connect_loop(SSL_CTX *ctx, int fd, struct spdk_sock_impl_opts *impl_opt
 		return NULL;
 	}
 	SSL_set_fd(ssl, fd);
+	SSL_set_connect_state(ssl);
 	SSL_set_app_data(ssl, impl_opts);
 	SSL_set_psk_use_session_callback(ssl, posix_sock_psk_use_session_client_cb);
 	SPDK_DEBUGLOG(sock_posix, "SSL object creation finished: %p\n", ssl);
 	SPDK_DEBUGLOG(sock_posix, "%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
-	while ((rc = SSL_connect(ssl)) != 1) {
-		SPDK_DEBUGLOG(sock_posix, "%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
-		ssl_get_error = SSL_get_error(ssl, rc);
-		SPDK_DEBUGLOG(sock_posix, "SSL_connect failed %d = SSL_connect(%p), %d = SSL_get_error(%p, %d)\n",
-			      rc, ssl, ssl_get_error, ssl, rc);
-		switch (ssl_get_error) {
-		case SSL_ERROR_WANT_READ:
-		case SSL_ERROR_WANT_WRITE:
-			continue;
-		default:
-			break;
-		}
-		SPDK_ERRLOG("SSL_connect() failed, errno = %d\n", errno);
-		SSL_free(ssl);
-		return NULL;
-	}
 	SPDK_DEBUGLOG(sock_posix, "%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
 	SPDK_DEBUGLOG(sock_posix, "Negotiated Cipher suite:%s\n",
 		      SSL_CIPHER_get_name(SSL_get_current_cipher(ssl)));
@@ -848,9 +831,7 @@ ssl_sock_connect_loop(SSL_CTX *ctx, int fd, struct spdk_sock_impl_opts *impl_opt
 static SSL *
 ssl_sock_accept_loop(SSL_CTX *ctx, int fd, struct spdk_sock_impl_opts *impl_opts)
 {
-	int rc;
 	SSL *ssl;
-	int ssl_get_error;
 
 	ssl = SSL_new(ctx);
 	if (!ssl) {
@@ -858,26 +839,11 @@ ssl_sock_accept_loop(SSL_CTX *ctx, int fd, struct spdk_sock_impl_opts *impl_opts
 		return NULL;
 	}
 	SSL_set_fd(ssl, fd);
+	SSL_set_accept_state(ssl);
 	SSL_set_app_data(ssl, impl_opts);
 	SSL_set_psk_find_session_callback(ssl, posix_sock_psk_find_session_server_cb);
 	SPDK_DEBUGLOG(sock_posix, "SSL object creation finished: %p\n", ssl);
 	SPDK_DEBUGLOG(sock_posix, "%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
-	while ((rc = SSL_accept(ssl)) != 1) {
-		SPDK_DEBUGLOG(sock_posix, "%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
-		ssl_get_error = SSL_get_error(ssl, rc);
-		SPDK_DEBUGLOG(sock_posix, "SSL_accept failed %d = SSL_accept(%p), %d = SSL_get_error(%p, %d)\n", rc,
-			      ssl, ssl_get_error, ssl, rc);
-		switch (ssl_get_error) {
-		case SSL_ERROR_WANT_READ:
-		case SSL_ERROR_WANT_WRITE:
-			continue;
-		default:
-			break;
-		}
-		SPDK_ERRLOG("SSL_accept() failed, errno = %d\n", errno);
-		SSL_free(ssl);
-		return NULL;
-	}
 	SPDK_DEBUGLOG(sock_posix, "%s = SSL_state_string_long(%p)\n", SSL_state_string_long(ssl), ssl);
 	SPDK_DEBUGLOG(sock_posix, "Negotiated Cipher suite:%s\n",
 		      SSL_CIPHER_get_name(SSL_get_current_cipher(ssl)));
