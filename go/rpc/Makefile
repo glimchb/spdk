@@ -8,7 +8,7 @@ include $(SPDK_ROOT_DIR)/mk/spdk.common.mk
 CLIENT_BUILD_DIR = $(SPDK_ROOT_DIR)/build/go/rpc
 CLIENT_SRC := $(wildcard $(CURDIR)/*.go $(CURDIR)/client/*.go)
 
-.PHONY: all clean
+.PHONY: all clean lint
 
 CGOFLAGS=-trimpath -mod=readonly -gcflags="all=-spectre=all -N -l" -asmflags="all=-spectre=all" -buildmode=c-shared -ldflags="all=-s -w"
 
@@ -17,3 +17,6 @@ all: $(CLIENT_SRC)
 
 clean:
 	$(Q)rm -rf $(CLIENT_BUILD_DIR)
+
+lint:
+	$(Q)docker run -t --rm -e CGO_ENABLED=0 -v $(CURDIR):/app -w /app golangci/golangci-lint:v1.54.2 golangci-lint run -v
