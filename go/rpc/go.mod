@@ -1,3 +1,3 @@
-module github.com/spdk/spdk/go/rpc
+module github.com/glimchb/spdk/go/rpc
 
 go 1.21
