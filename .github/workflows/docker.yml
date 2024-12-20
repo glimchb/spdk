@@ -59,6 +59,10 @@ jobs:
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@edfb0fe6204400c56fbfd3feba3fe9ad1adfa345
 
+      - name: Package SPDK
+        run: tar -czf build_base/spdk.tar.gz --exclude='docker/*' -C .. .
+        working-directory: docker
+
       - name: Start containers
         run: docker compose up --build --force-recreate --detach
         working-directory: docker
