@@ -35,7 +35,8 @@ jobs:
             ghcr.io/${{ github.repository }}
 
       - name: Package SPDK
-        run: tar -czf docker/build_base/spdk.tar.gz --exclude='docker/*' -C .. .
+        run: tar -czf build_base/spdk.tar.gz --exclude='docker/*' -C .. .
+        working-directory: docker
 
       - name: Build and push Docker image
         id: build-and-push
@@ -44,7 +45,8 @@ jobs:
           context: docker/build_base
           #platforms: linux/amd64,linux/arm64
           platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' }}
+          #push: ${{ github.event_name != 'pull_request' }}
+          push: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
