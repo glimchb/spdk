@@ -34,17 +34,17 @@ jobs:
           grep "" /sys/kernel/mm/hugepages/hugepages-*/nr_hugepages
           sudo ./build/bin/spdk_tgt -m 0x1 -s 512 --no-pci 2>&1 &
           echo wait 5s... && sleep 5s
-          for i in {1..10}; do ./scripts/rpc.py spdk_get_version && break || sleep 1; done
-          ./scripts/rpc.py bdev_malloc_create -b Malloc0 64 512
-          ./scripts/rpc.py bdev_malloc_create -b Malloc1 64 512
-          ./scripts/rpc.py nvmf_create_transport -t TCP -u 8192 -m 4 -c 0
-          ./scripts/rpc.py nvmf_create_subsystem nqn.2016-06.io.spdk:cnode1 -a -s SPDK00000000000001 -d SPDK_Controller1
-          ./scripts/rpc.py nvmf_subsystem_add_listener nqn.2016-06.io.spdk:cnode1 -t tcp -a 127.0.0.1 -s 4420
-          ./scripts/rpc.py nvmf_subsystem_add_ns nqn.2016-06.io.spdk:cnode1 Malloc0 -n 1
-          ./scripts/rpc.py nvmf_subsystem_add_ns nqn.2016-06.io.spdk:cnode1 Malloc1 -n 2
+          for i in {1..10}; do sudo ./scripts/rpc.py spdk_get_version && break || sleep 1; done
+          sudo ./scripts/rpc.py bdev_malloc_create -b Malloc0 64 512
+          sudo ./scripts/rpc.py bdev_malloc_create -b Malloc1 64 512
+          sudo ./scripts/rpc.py nvmf_create_transport -t TCP -u 8192 -m 4 -c 0
+          sudo ./scripts/rpc.py nvmf_create_subsystem nqn.2016-06.io.spdk:cnode1 -a -s SPDK00000000000001 -d SPDK_Controller1
+          sudo ./scripts/rpc.py nvmf_subsystem_add_listener nqn.2016-06.io.spdk:cnode1 -t tcp -a 127.0.0.1 -s 4420
+          sudo ./scripts/rpc.py nvmf_subsystem_add_ns nqn.2016-06.io.spdk:cnode1 Malloc0 -n 1
+          sudo ./scripts/rpc.py nvmf_subsystem_add_ns nqn.2016-06.io.spdk:cnode1 Malloc1 -n 2
           # RUN PERF
-          ./build/examples/identify -r "traddr:`hostname -i` trtype:TCP adrfam:IPv4 trsvcid:5555 hostnqn:nqn.2014-08.org.nvmexpress:uuid:feb98abe-d51f-40c8-b348-2753f3571d3c"
-          ./build/examples/perf -r "traddr:`hostname -i` trtype:TCP adrfam:IPv4 trsvcid:5555 hostnqn:nqn.2014-08.org.nvmexpress:uuid:feb98abe-d51f-40c8-b348-2753f3571d3c subnqn:nqn.2016-06.io.spdk:cnode1" -c 0x1 -q 1 -o 4096 -w randread -t 10 | tee lognotls.txt
+          sudo ./build/examples/identify -r "traddr:`hostname -i` trtype:TCP adrfam:IPv4 trsvcid:5555 hostnqn:nqn.2014-08.org.nvmexpress:uuid:feb98abe-d51f-40c8-b348-2753f3571d3c"
+          sudo ./build/examples/perf -r "traddr:`hostname -i` trtype:TCP adrfam:IPv4 trsvcid:5555 hostnqn:nqn.2014-08.org.nvmexpress:uuid:feb98abe-d51f-40c8-b348-2753f3571d3c subnqn:nqn.2016-06.io.spdk:cnode1" -c 0x1 -q 1 -o 4096 -w randread -t 10 | tee lognotls.txt
 
       - name: Nvme PERF
         # working-directory: compiled-spdk
