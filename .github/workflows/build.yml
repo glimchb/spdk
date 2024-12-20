@@ -39,6 +39,9 @@ jobs:
       - name: Make
         run: make
 
+      - name: Tests
+        run: ./test/unit/unittest.sh
+
       # - name: Compile RPM
       #   run: |
       #     ./rpmbuild/rpm.sh \
