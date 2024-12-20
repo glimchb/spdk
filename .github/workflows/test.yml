@@ -48,3 +48,12 @@ jobs:
           spdk_nvme_identify -r "traddr:`hostname -i` trtype:TCP adrfam:IPv4 trsvcid:5555 hostnqn:nqn.2014-08.org.nvmexpress:uuid:feb98abe-d51f-40c8-b348-2753f3571d3c"
           spdk_nvme_perf     -r "traddr:`hostname -i` trtype:TCP adrfam:IPv4 trsvcid:5555 hostnqn:nqn.2014-08.org.nvmexpress:uuid:feb98abe-d51f-40c8-b348-2753f3571d3c subnqn:nqn.2016-06.io.spdk:cnode1" -c 0x1 -q 1 -o 4096 -w randread -t 10 | tee lognotls.txt
 
+  unittest:
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Run Unit Tests
+        run: |
+          ls -R
+          ./test/unit/unittest.sh
