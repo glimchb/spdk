@@ -25,11 +25,11 @@ jobs:
           ls -R
           tar -vxf ./compiled-spdk/spdk.tar
       - name: Start SPDK NVMe/TCP target
-        working-directory: compiled-spdk
+        # working-directory: compiled-spdk
         run: |
           sync
-          echo 1 > /proc/sys/vm/drop_caches
-          echo 1024 > /proc/sys/vm/nr_hugepages
+          echo 1 | sudo tee /proc/sys/vm/drop_caches
+          echo 1024 | sudo tee /proc/sys/vm/nr_hugepages
           grep "" /sys/kernel/mm/hugepages/hugepages-*/nr_hugepages
           ./build/bin/spdk_tgt -m 0x1 -s 512 --no-pci 2>&1 &
           echo wait 5s... && sleep 5s
@@ -44,7 +44,7 @@ jobs:
           ./scripts/rpc_http_proxy.py 0.0.0.0 9009 spdkuser spdkpass
 
       - name: Nvme PERF
-        working-directory: compiled-spdk
+        # working-directory: compiled-spdk
         run: |
           ./build/examples/identify -r "traddr:`hostname -i` trtype:TCP adrfam:IPv4 trsvcid:5555 hostnqn:nqn.2014-08.org.nvmexpress:uuid:feb98abe-d51f-40c8-b348-2753f3571d3c"
           ./build/examples/perf -r "traddr:`hostname -i` trtype:TCP adrfam:IPv4 trsvcid:5555 hostnqn:nqn.2014-08.org.nvmexpress:uuid:feb98abe-d51f-40c8-b348-2753f3571d3c subnqn:nqn.2016-06.io.spdk:cnode1" -c 0x1 -q 1 -o 4096 -w randread -t 10 | tee lognotls.txt
