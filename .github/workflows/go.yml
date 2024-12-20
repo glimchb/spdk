@@ -24,6 +24,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
+
+      - name: Install additional packages
+        run: sudo apt-get install build-essential
+
       - uses: golangci/golangci-lint-action@v3
         with:
           working-directory: go/rpc
