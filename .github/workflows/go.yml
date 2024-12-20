@@ -1,0 +1,44 @@
+name: Go
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: [ '1.21', '1.22', '1.23' ]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Build
+      run: make
+      working-directory: go/rpc
+
+    # - name: Build
+    #   run: go build -v ./...
+    #   working-directory: cmd
+
+    # - name: Test
+    #   run: go test -race -coverprofile=coverage.out -covermode=atomic -v ./...
+    #   working-directory: .
+
+    # - name: Upload coverage to Codecov
+    #   uses: codecov/codecov-action@v3
