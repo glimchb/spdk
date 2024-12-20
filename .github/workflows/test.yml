@@ -46,12 +46,6 @@ jobs:
           sudo ./build/examples/identify -r "traddr:127.0.0.1 trtype:TCP adrfam:IPv4 trsvcid:4420 hostnqn:nqn.2014-08.org.nvmexpress:uuid:feb98abe-d51f-40c8-b348-2753f3571d3c"
           sudo ./build/examples/perf     -r "traddr:127.0.0.1 trtype:TCP adrfam:IPv4 trsvcid:4420 hostnqn:nqn.2014-08.org.nvmexpress:uuid:feb98abe-d51f-40c8-b348-2753f3571d3c subnqn:nqn.2016-06.io.spdk:cnode1" -c 0x1 -q 1 -o 4096 -w randread -t 10 | tee lognotls.txt
 
-      - name: Nvme PERF
-        # working-directory: compiled-spdk
-        run: |
-          ./build/examples/identify -r "traddr:`hostname -i` trtype:TCP adrfam:IPv4 trsvcid:5555 hostnqn:nqn.2014-08.org.nvmexpress:uuid:feb98abe-d51f-40c8-b348-2753f3571d3c"
-          ./build/examples/perf -r "traddr:`hostname -i` trtype:TCP adrfam:IPv4 trsvcid:5555 hostnqn:nqn.2014-08.org.nvmexpress:uuid:feb98abe-d51f-40c8-b348-2753f3571d3c subnqn:nqn.2016-06.io.spdk:cnode1" -c 0x1 -q 1 -o 4096 -w randread -t 10 | tee lognotls.txt
-
   unittest:
     runs-on: ubuntu-latest
     needs: [build]
