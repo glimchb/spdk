@@ -21,9 +21,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
       - name: Unpack pre-built SPDK
-        run: |
-          ls -R
-          tar -vxf ./compiled-spdk/spdk.tar
+        run: tar -vxf ./compiled-spdk/spdk.tar
       - name: Start SPDK NVMe/TCP target
         # working-directory: compiled-spdk
         run: |
@@ -31,7 +29,7 @@ jobs:
           echo 1 | sudo tee /proc/sys/vm/drop_caches
           echo 1024 | sudo tee /proc/sys/vm/nr_hugepages
           grep "" /sys/kernel/mm/hugepages/hugepages-*/nr_hugepages
-          ./build/bin/spdk_tgt -m 0x1 -s 512 --no-pci 2>&1 &
+          sudo ./build/bin/spdk_tgt -m 0x1 -s 512 --no-pci 2>&1 &
           echo wait 5s... && sleep 5s
           for i in {1..10}; do ./scripts/rpc.py spdk_get_version && break || sleep 1; done
           ./scripts/rpc.py bdev_malloc_create -b Malloc0 64 512
@@ -41,7 +39,9 @@ jobs:
           ./scripts/rpc.py nvmf_subsystem_add_listener nqn.2016-06.io.spdk:cnode1 -t tcp -a 127.0.0.1 -s 4420
           ./scripts/rpc.py nvmf_subsystem_add_ns nqn.2016-06.io.spdk:cnode1 Malloc0 -n 1
           ./scripts/rpc.py nvmf_subsystem_add_ns nqn.2016-06.io.spdk:cnode1 Malloc1 -n 2
-          ./scripts/rpc_http_proxy.py 0.0.0.0 9009 spdkuser spdkpass
+          # RUN PERF
+          ./build/examples/identify -r "traddr:`hostname -i` trtype:TCP adrfam:IPv4 trsvcid:5555 hostnqn:nqn.2014-08.org.nvmexpress:uuid:feb98abe-d51f-40c8-b348-2753f3571d3c"
+          ./build/examples/perf -r "traddr:`hostname -i` trtype:TCP adrfam:IPv4 trsvcid:5555 hostnqn:nqn.2014-08.org.nvmexpress:uuid:feb98abe-d51f-40c8-b348-2753f3571d3c subnqn:nqn.2016-06.io.spdk:cnode1" -c 0x1 -q 1 -o 4096 -w randread -t 10 | tee lognotls.txt
 
       - name: Nvme PERF
         # working-directory: compiled-spdk
@@ -55,8 +55,6 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
       - name: Unpack pre-built SPDK
-        run: |
-          ls -R
-          tar -vxf ./compiled-spdk/spdk.tar
+        run: tar -vxf ./compiled-spdk/spdk.tar
       - name: Run Unit Tests
         run: ./test/unit/unittest.sh
