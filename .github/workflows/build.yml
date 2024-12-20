@@ -28,12 +28,9 @@ jobs:
         run: |
           ./configure \
               --without-uring \
-              --with-crypto \
               --without-fio \
-              --with-raid5f \
-              --with-vhost \
               --without-rbd \
-              --with-rdma \
+              --without-rdma \
               --without-shared \
               --with-iscsi-initiator \
               --without-vtune \
