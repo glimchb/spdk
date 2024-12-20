@@ -1,4 +1,4 @@
-name: Build SPDK
+name: Build
 
 on:
   workflow_dispatch:
