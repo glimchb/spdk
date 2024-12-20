@@ -24,10 +24,9 @@ jobs:
           submodules: true
       - name: Install additional packages
         run: sudo ./scripts/pkgdep.sh
-      - name: Compile
+      - name: Configure
         run: |
-          ./rpmbuild/rpm.sh \
-              --target-arch=${ARCH} \
+          ./configure \
               --without-uring \
               --with-crypto \
               --without-fio \
@@ -39,10 +38,29 @@ jobs:
               --with-iscsi-initiator \
               --without-vtune \
               --with-vfio-user
-        env:
-          DEPS: no
-          LDFLAGS: " "
-          ARCH: x86
+      - name: Make
+        run: make
+
+      # - name: Compile RPM
+      #   run: |
+      #     ./rpmbuild/rpm.sh \
+      #         --target-arch=${ARCH} \
+      #         --without-uring \
+      #         --with-crypto \
+      #         --without-fio \
+      #         --with-raid5f \
+      #         --with-vhost \
+      #         --without-rbd \
+      #         --with-rdma \
+      #         --without-shared \
+      #         --with-iscsi-initiator \
+      #         --without-vtune \
+      #         --with-vfio-user
+      #   env:
+      #     DEPS: no
+      #     LDFLAGS: " "
+      #     ARCH: x86
+
       - name: Done
         run: echo done
 
