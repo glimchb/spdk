@@ -44,9 +44,9 @@ jobs:
               --without-rbd \
               --without-rdma \
               --without-shared \
-              --with-iscsi-initiator \
+              --without-iscsi-initiator \
               --without-vtune \
-              --with-vfio-user
+              --without-vfio-user
       - name: Make
         run: make -j
 
