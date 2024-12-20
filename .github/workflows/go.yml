@@ -30,6 +30,21 @@ jobs:
       with:
         go-version: ${{ matrix.go-version }}
 
+    - name: Install additional packages
+      run: sudo ./scripts/pkgdep.sh
+    - name: Configure
+      run: |
+        ./configure \
+            --with-golang \
+            --without-uring \
+            --without-fio \
+            --without-rbd \
+            --without-rdma \
+            --without-shared \
+            --with-iscsi-initiator \
+            --without-vtune \
+            --with-vfio-user
+
     - name: Build
       run: make
       working-directory: go/rpc
