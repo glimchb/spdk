@@ -3,6 +3,17 @@ name: Build
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      pkgdep_args:
+        required: false
+        default: ''
+        type: string
+      configure_args:
+        required: false
+        default: ''
+        type: string
+
+
   push:
     branches: [ "main", "master" ]
   pull_request:
@@ -24,10 +35,10 @@ jobs:
         with:
           submodules: true
       - name: Install additional packages
-        run: sudo ./scripts/pkgdep.sh
+        run: sudo ./scripts/pkgdep.sh ${{ inputs.pkgdep_args }}
       - name: Configure
         run: |
-          ./configure \
+          ./configure ${{ inputs.configure_args }} \
               --without-uring \
               --without-fio \
               --without-rbd \
@@ -40,7 +51,7 @@ jobs:
         run: make
 
       - name: 'Tar files'
-        run: tar -cvf spdk.tar .
+        run: tar -cvf spdk.tar --exclude-vcs .
       
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v4
