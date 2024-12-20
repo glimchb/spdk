@@ -20,7 +20,7 @@ jobs:
     needs: [build]
     steps:
       - uses: actions/download-artifact@v4
-      - name: Display structure of downloaded files
+      - name: Unpack pre-built SPDK
         run: |
           ls -R
           tar -vxf ./compiled-spdk/spdk.tar
@@ -54,7 +54,9 @@ jobs:
     needs: [build]
     steps:
       - uses: actions/download-artifact@v4
-      - name: Run Unit Tests
+      - name: Unpack pre-built SPDK
         run: |
           ls -R
-          ./test/unit/unittest.sh
+          tar -vxf ./compiled-spdk/spdk.tar
+      - name: Run Unit Tests
+        run: ./test/unit/unittest.sh
