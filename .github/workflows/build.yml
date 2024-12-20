@@ -19,7 +19,7 @@ jobs:
       - name: Update submodules
         run: git submodule update --init --depth 1
       - name: Install additional packages
-        run: ./scripts/pkgdep.sh
+        run: sudo ./scripts/pkgdep.sh
       - name: Compile
         run: |
           ./rpmbuild/rpm.sh \
