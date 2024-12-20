@@ -58,9 +58,9 @@ jobs:
       - name: Make
         run: make -j
 
-      - name: 'Tar files'
+      - name: Tar files before upload to preserve permissions
         run: tar -cvf spdk.tar --exclude-vcs .
-      
+
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v4
         with:
