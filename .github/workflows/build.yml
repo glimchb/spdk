@@ -20,8 +20,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Update submodules
-        run: git submodule update --init --depth 1
+        with:
+          submodules: true
       - name: Install additional packages
         run: sudo ./scripts/pkgdep.sh
       - name: Compile
