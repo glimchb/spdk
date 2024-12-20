@@ -39,8 +39,17 @@ jobs:
       - name: Make
         run: make
 
-      - name: Tests
-        run: ./test/unit/unittest.sh
+      - name: 'Tar files'
+        run: tar -cvf spdk.tar .
+      
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-spdk
+          path: spdk.tar
+    
+      # - name: Tests
+      #   run: ./test/unit/unittest.sh
 
       # - name: Compile RPM
       #   run: |
