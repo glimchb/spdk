@@ -2,6 +2,15 @@ name: Build
 
 on:
   workflow_dispatch:
+    inputs:
+      pkgdep_args:
+        required: false
+        default: ''
+        type: string
+      configure_args:
+        required: false
+        default: ''
+        type: string
   workflow_call:
     inputs:
       pkgdep_args:
@@ -12,7 +21,6 @@ on:
         required: false
         default: ''
         type: string
-
 
   push:
     branches: [ "main", "master" ]
@@ -58,30 +66,3 @@ jobs:
         with:
           name: compiled-spdk
           path: spdk.tar
-    
-      # - name: Tests
-      #   run: ./test/unit/unittest.sh
-
-      # - name: Compile RPM
-      #   run: |
-      #     ./rpmbuild/rpm.sh \
-      #         --target-arch=${ARCH} \
-      #         --without-uring \
-      #         --with-crypto \
-      #         --without-fio \
-      #         --with-raid5f \
-      #         --with-vhost \
-      #         --without-rbd \
-      #         --with-rdma \
-      #         --without-shared \
-      #         --with-iscsi-initiator \
-      #         --without-vtune \
-      #         --with-vfio-user
-      #   env:
-      #     DEPS: no
-      #     LDFLAGS: " "
-      #     ARCH: x86
-
-      - name: Done
-        run: echo done
-
