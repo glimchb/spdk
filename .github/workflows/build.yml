@@ -1,0 +1,44 @@
+name: Build SPDK
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update submodules
+        run: git submodule update --init --depth 1
+      - name: Install additional packages
+        run: ./scripts/pkgdep.sh
+      - name: Compile
+        run: |
+          ./rpmbuild/rpm.sh \
+              --target-arch=${ARCH} \
+              --without-uring \
+              --with-crypto \
+              --without-fio \
+              --with-raid5f \
+              --with-vhost \
+              --without-rbd \
+              --with-rdma \
+              --without-shared \
+              --with-iscsi-initiator \
+              --without-vtune \
+              --with-vfio-user
+        env:
+          DEPS: no
+          LDFLAGS: " "
+          ARCH: x86
+      - name: Done
+        run: echo done
+
