@@ -40,11 +40,15 @@ jobs:
 
       - name: Make
         run: make -j
-      - run: ./test/unit/unittest.sh
+
+      - name: Run unit tests with coverage
+        run: ./test/unit/unittest.sh
+
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-spdk
           path: output/ut_coverage
+
       - name: Upload Report to Codecov
         uses: codecov/codecov-action@v5.1.2
         with:
