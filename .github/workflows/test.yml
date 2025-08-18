@@ -1,0 +1,52 @@
+name: Test
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      # See https://github.com/clearlinux/distribution/issues/1464
+      - name: Hack - why meson is not installed ?
+        run: sudo apt-get install meson python3-pyelftools
+
+      - name: Install additional packages
+        run: sudo ./scripts/pkgdep.sh --developer-tools
+
+      - name: Configure
+        run: |
+          ./configure --enable-coverage \
+              --without-uring \
+              --without-fio \
+              --without-rbd \
+              --without-rdma \
+              --without-shared \
+              --without-iscsi-initiator \
+              --without-vtune \
+              --without-vfio-user
+
+      - name: Make
+        run: make -j
+      - run: ./test/unit/unittest.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-spdk
+          path: output/ut_coverage
+      - name: Upload Report to Codecov
+        uses: codecov/codecov-action@v5.1.2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: glimchb/spdk
