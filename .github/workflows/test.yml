@@ -1,4 +1,4 @@
-name: Test
+name: CodeCov Test
 
 on:
   workflow_dispatch:
