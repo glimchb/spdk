@@ -140,7 +140,7 @@ if [ $SPDK_TEST_UNITTEST -eq 1 ]; then
 fi
 
 if [ $SPDK_RUN_FUNCTIONAL_TEST -eq 1 ]; then
-	if [[ $SPDK_TEST_CRYPTO -eq 1 || $SPDK_TEST_VBDEV_COMPRESS -eq 1 ]]; then
+	if [[ $SPDK_TEST_CRYPTO -eq 1 ]]; then
 		if [[ $SPDK_TEST_USE_IGB_UIO -eq 1 ]]; then
 			$rootdir/scripts/qat_setup.sh igb_uio
 		else
@@ -265,15 +265,6 @@ if [ $SPDK_RUN_FUNCTIONAL_TEST -eq 1 ]; then
 		run_test "spdkcli_iscsi" $rootdir/test/spdkcli/iscsi.sh
 	fi
 
-	if [ $SPDK_TEST_BLOBFS -eq 1 ]; then
-		run_test "rocksdb" $rootdir/test/blobfs/rocksdb/rocksdb.sh
-		run_test "blobstore" $rootdir/test/blobstore/blobstore.sh
-		run_test "blobstore_grow" $rootdir/test/blobstore/blobstore_grow/blobstore_grow.sh
-		run_test "blobfs" $rootdir/test/blobfs/blobfs.sh
-		run_test "hello_blob" $SPDK_EXAMPLE_DIR/hello_blob \
-			examples/blob/hello_world/hello_blob.json
-	fi
-
 	if [ $SPDK_TEST_NVMF -eq 1 ]; then
 		export NET_TYPE
 		# The NVMe-oF run test cases are split out like this so that the parser that compiles the
@@ -318,6 +309,10 @@ if [ $SPDK_RUN_FUNCTIONAL_TEST -eq 1 ]; then
 	fi
 
 	if [ $SPDK_TEST_LVOL -eq 1 ]; then
+		run_test "blobstore" $rootdir/test/blobstore/blobstore.sh
+		run_test "blobstore_grow" $rootdir/test/blobstore/blobstore_grow/blobstore_grow.sh
+		run_test "hello_blob" $SPDK_EXAMPLE_DIR/hello_blob \
+			examples/blob/hello_world/hello_blob.json
 		run_test "lvol" $rootdir/test/lvol/lvol.sh
 		run_test "blob_io_wait" $rootdir/test/blobstore/blob_io_wait/blob_io_wait.sh
 	fi
@@ -346,11 +341,6 @@ if [ $SPDK_RUN_FUNCTIONAL_TEST -eq 1 ]; then
 
 	if [ $SPDK_TEST_VMD -eq 1 ]; then
 		run_test "vmd" $rootdir/test/vmd/vmd.sh
-	fi
-
-	if [ $SPDK_TEST_VBDEV_COMPRESS -eq 1 ]; then
-		run_test "compress_compdev" $rootdir/test/compress/compress.sh "compdev"
-		run_test "compress_isal" $rootdir/test/compress/compress.sh "isal"
 	fi
 
 	if [ $SPDK_TEST_OPAL -eq 1 ]; then

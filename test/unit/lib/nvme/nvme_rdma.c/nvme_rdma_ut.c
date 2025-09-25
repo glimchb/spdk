@@ -181,11 +181,11 @@ nvme_rdma_ut_next_sge(void *cb_arg, void **address, uint32_t *length)
 static void
 test_nvme_rdma_build_sgl_request(void)
 {
-	struct nvme_rdma_qpair rqpair;
-	struct spdk_nvme_ctrlr ctrlr = {0};
-	struct spdk_nvmf_cmd cmd = {{0}};
-	struct spdk_nvme_rdma_req rdma_req = {0};
-	struct nvme_request req = {{0}};
+	struct nvme_rdma_qpair rqpair = {};
+	struct spdk_nvme_ctrlr ctrlr = {};
+	struct spdk_nvmf_cmd cmd = {};
+	struct spdk_nvme_rdma_req rdma_req = {};
+	struct nvme_request req = {};
 	struct nvme_rdma_ut_bdev_io bio = { .iovcnt = NVME_RDMA_MAX_SGL_DESCRIPTORS };
 	uint64_t i;
 	int rc;
@@ -290,11 +290,11 @@ test_nvme_rdma_build_sgl_request(void)
 static void
 test_nvme_rdma_build_sgl_inline_request(void)
 {
-	struct nvme_rdma_qpair rqpair;
-	struct spdk_nvme_ctrlr ctrlr = {0};
-	struct spdk_nvmf_cmd cmd = {{0}};
-	struct spdk_nvme_rdma_req rdma_req = {0};
-	struct nvme_request req = {{0}};
+	struct nvme_rdma_qpair rqpair = {};
+	struct spdk_nvme_ctrlr ctrlr = {};
+	struct spdk_nvmf_cmd cmd = {};
+	struct spdk_nvme_rdma_req rdma_req = {};
+	struct nvme_request req = {};
 	struct nvme_rdma_ut_bdev_io bio = { .iovcnt = NVME_RDMA_MAX_SGL_DESCRIPTORS };
 	int rc;
 
@@ -351,11 +351,11 @@ test_nvme_rdma_build_sgl_inline_request(void)
 static void
 test_nvme_rdma_build_contig_request(void)
 {
-	struct nvme_rdma_qpair rqpair;
-	struct spdk_nvme_ctrlr ctrlr = {0};
-	struct spdk_nvmf_cmd cmd = {{0}};
-	struct spdk_nvme_rdma_req rdma_req = {0};
-	struct nvme_request req = {{0}};
+	struct nvme_rdma_qpair rqpair = {};
+	struct spdk_nvme_ctrlr ctrlr = {};
+	struct spdk_nvmf_cmd cmd = {};
+	struct spdk_nvme_rdma_req rdma_req = {};
+	struct nvme_request req = {};
 	int rc;
 
 	ctrlr.max_sges = NVME_RDMA_MAX_SGL_DESCRIPTORS;
@@ -394,11 +394,11 @@ test_nvme_rdma_build_contig_request(void)
 static void
 test_nvme_rdma_build_contig_inline_request(void)
 {
-	struct nvme_rdma_qpair rqpair;
-	struct spdk_nvme_ctrlr ctrlr = {0};
-	struct spdk_nvmf_cmd cmd = {{0}};
-	struct spdk_nvme_rdma_req rdma_req = {0};
-	struct nvme_request req = {{0}};
+	struct nvme_rdma_qpair rqpair = {};
+	struct spdk_nvme_ctrlr ctrlr = {};
+	struct spdk_nvmf_cmd cmd = {};
+	struct spdk_nvme_rdma_req rdma_req = {};
+	struct nvme_request req = {};
 	int rc;
 
 	ctrlr.max_sges = NVME_RDMA_MAX_SGL_DESCRIPTORS;
@@ -447,7 +447,8 @@ test_nvme_rdma_build_contig_inline_request(void)
 static void
 test_nvme_rdma_create_reqs(void)
 {
-	struct nvme_rdma_qpair rqpair = {};
+	struct nvme_rdma_ctrlr rctrlr = {};
+	struct nvme_rdma_qpair rqpair = {.qpair = {.ctrlr = &rctrlr.ctrlr}};
 	int rc;
 
 	memset(&g_nvme_hooks, 0, sizeof(g_nvme_hooks));
@@ -646,7 +647,8 @@ test_nvme_rdma_poller_create(void)
 static void
 test_nvme_rdma_qpair_process_cm_event(void)
 {
-	struct nvme_rdma_qpair rqpair = {};
+	struct nvme_rdma_ctrlr rctrlr = {};
+	struct nvme_rdma_qpair rqpair = {.qpair = {.ctrlr = &rctrlr.ctrlr}};
 	struct rdma_cm_event	 event = {};
 	struct spdk_nvmf_rdma_accept_private_data	accept_data = {};
 	int rc = 0;
@@ -1058,7 +1060,8 @@ test_rdma_get_memory_translation(void)
 	struct spdk_memory_domain *domain = (struct spdk_memory_domain *) 0xfeedbeef;
 	struct ibv_qp qp = {.pd = (struct ibv_pd *) 0xfeedbeef};
 	struct spdk_rdma_provider_qp rdma_qp = {.qp = &qp, .domain = domain};
-	struct nvme_rdma_qpair rqpair = {.rdma_qp = &rdma_qp};
+	struct nvme_rdma_ctrlr rctrlr = {};
+	struct nvme_rdma_qpair rqpair = {.rdma_qp = &rdma_qp, .qpair = {.ctrlr = &rctrlr.ctrlr}};
 	struct spdk_nvme_ns_cmd_ext_io_opts io_opts = {.memory_domain = domain};
 	struct nvme_request req = {.payload = {.opts = &io_opts}};
 	struct nvme_rdma_memory_translation_ctx ctx = {
@@ -1268,7 +1271,8 @@ test_nvme_rdma_qpair_set_poller(void)
 	struct nvme_rdma_poll_group *group;
 	struct spdk_nvme_transport_poll_group *tgroup;
 	struct nvme_rdma_poller *poller;
-	struct nvme_rdma_qpair rqpair = {}, rqpair_2 = {};
+	struct nvme_rdma_ctrlr rctrlr = {};
+	struct nvme_rdma_qpair rqpair = {.qpair = {.ctrlr = &rctrlr.ctrlr}}, rqpair_2 = {.qpair = {.ctrlr = &rctrlr.ctrlr}};
 	struct rdma_cm_id cm_id = {};
 
 	/* Case1: Test function nvme_rdma_poll_group_create */

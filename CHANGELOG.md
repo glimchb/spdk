@@ -1,11 +1,15 @@
 # Changelog
 
-## v25.09: (Upcoming Release)
+## v26.01: (Upcoming Release)
+
+## v25.09
 
 ### python
 
 Moved all cli code inside the python package for easier generation and packaging.
 Split large rpc python file into modules.
+
+Deprecate python.spdk.rpc modules and use JSONRPCClient object directly.
 
 ### sock
 
@@ -20,6 +24,12 @@ implementations.
 
 Changed the return behavior of `spdk_sock_flush`. The function now returns 0 on success, as relying
 on the number of bytes returned was not recommended.
+
+### nvmf
+
+Add NSSR support (NVMe Subsytem Reset) to NVMe-oF target. Once NSSR is issued - it is passed to all
+underlying namespaces (bdevs). Currenly only bdevs with PCIe transport would handle NSSR.
+See the NVMe Subsystem Reset (NSSR) section of nvmf.md for more information.
 
 ## v25.05
 

@@ -104,6 +104,67 @@ function raid_unmap_function_test() {
 	return 0
 }
 
+function raid_io_resource_dependence() {
+	rm -rf $testdir/aio1.bdev
+	rm -rf $testdir/aio2.bdev
+	truncate -s 2048MB $testdir/aio1.bdev
+	truncate -s 2048MB $testdir/aio2.bdev
+
+	local nbd=/dev/nbd0
+	local raid_bdev
+
+	$rootdir/test/app/bdev_svc/bdev_svc -i 0 -L bdev_raid &
+	raid_pid=$!
+	echo "Process raid pid: $raid_pid"
+	waitforlisten $raid_pid
+
+	$rpc_py bdev_aio_create $testdir/aio1.bdev Base_1 4096 --fallocate
+	$rpc_py bdev_aio_create $testdir/aio2.bdev Base_2 4096 --fallocate
+
+	$rpc_py bdev_raid_create -r raid1 -b "'Base_1 Base_2'" -n raid
+
+	$rpc_py bdev_lvol_create_lvstore raid lvs -c 8192
+
+	for lv_size in 256 768; do
+		echo "==== Testing LV size: ${lv_size} ===="
+
+		$rpc_py bdev_lvol_create -l lvs lv0 ${lv_size} -t
+
+		lvol_bdev=$($rpc_py bdev_lvol_get_lvols | jq -r '.[0]["alias"] | select(.)')
+		if [ -z "$lvol_bdev" ]; then
+			echo "lvol create failed"
+			exit 1
+		fi
+
+		nbd_start_disks $DEFAULT_RPC_ADDR $lvol_bdev $nbd
+		count=$(nbd_get_count $DEFAULT_RPC_ADDR)
+		if [ $count -ne 1 ]; then
+			exit 1
+		fi
+
+		fio --name=test --filename=$nbd --rw=randwrite --bs=8k --iodepth=128 --ioengine=aio --numjobs=1 --direct=1
+		sleep 1
+
+		nbd_stop_disks $DEFAULT_RPC_ADDR $nbd
+		count=$(nbd_get_count $DEFAULT_RPC_ADDR)
+		if [ $count -ne 0 ]; then
+			exit 1
+		fi
+
+		time $rpc_py bdev_lvol_delete $lvol_bdev
+
+		echo "==== Done LV size: ${lv_size} ===="
+		echo
+	done
+
+	killprocess $raid_pid
+
+	rm -rf $testdir/aio1.bdev
+	rm -rf $testdir/aio2.bdev
+
+	return 0
+}
+
 function verify_raid_bdev_state() {
 	local raid_bdev_name=$1
 	local expected_state=$2
@@ -916,6 +977,144 @@ function raid_resize_superblock_test() {
 	return 0
 }
 
+function raid_nvmf_uaf_test() {
+	# Test for use-after-free crash in RAID1 bdev during NVMe-oF controller failures
+	# Reproduces issue: https://github.com/spdk/spdk/issues/3703
+	local num_base_bdevs=$1
+	local max_iterations=$2
+	# Test configuration - NQNs, ports, and naming prefixes
+	local nqn_base="nqn.2023-01.test"
+	local bdev_nqn_prefix="${nqn_base}:bdev_"
+	local raid_nqn="${nqn_base}:raid"
+	local bdev_name_prefix="bdev_"
+	local lvs_name_prefix="bdev_lvs_"
+	local lvol_name_prefix="bdev_lvol_"
+	local controller_prefix="nvme"
+	local disk_img_prefix="disk-img-"
+	local base_port=4450
+	local raid_port=4420
+	local raid_name="raid1_test"
+	local spdk_serial_base="SPDK00000000000001"
+	local spdk_raid_serial="SPDK00000000000002"
+	local tcp_addr="127.0.0.1"
+	local raid_uaf_tmp_dir="$tmp_dir/raid_uaf_test"
+
+	# Load NVMe module
+	modprobe nvme-tcp
+	for ((iteration = 1; iteration <= max_iterations; iteration++)); do
+		echo "starting iteration $iteration of $max_iterations"
+
+		# Start SPDK target with NVMe-oF support
+		$rootdir/build/bin/spdk_tgt &
+		local spdk_pid=$!
+		waitforlisten $spdk_pid
+
+		# Initialize NVMe-oF transport
+		mkdir -p "$raid_uaf_tmp_dir"
+		$rpc_py nvmf_create_transport -t TCP
+
+		# Create base bdevs and export them via NVMe-oF
+		for ((i = 0; i < num_base_bdevs; i++)); do
+			local bdev_name="${bdev_name_prefix}$i"
+			local lvs="${lvs_name_prefix}$i"
+			local lvol="${lvol_name_prefix}$i"
+			local nqn="${bdev_nqn_prefix}$i"
+			local port=$((base_port + i))
+			local controller="${controller_prefix}$i"
+			local disk_img="$raid_uaf_tmp_dir/${disk_img_prefix}$i"
+
+			# Create backing storage: AIO bdev -> LVOL store -> LVOL
+			rm -rf $disk_img
+			truncate -s 1024MB $disk_img
+			$rpc_py bdev_aio_create $disk_img $bdev_name 512 --fallocate
+			$rpc_py bdev_lvol_create_lvstore $bdev_name $lvs
+			$rpc_py bdev_lvol_create -l $lvs $lvol 1024 -t
+
+			# Export LVOL via NVMe-oF
+			$rpc_py nvmf_create_subsystem $nqn -s "${spdk_serial_base}$i" -a
+			$rpc_py nvmf_subsystem_add_ns -g "$(printf "1234567890abcdef%08x%08x" "$(date +%s)" $i)" $nqn $lvs/$lvol
+			$rpc_py nvmf_subsystem_add_listener $nqn -t TCP -a $tcp_addr -s $port
+
+			# Connect back to own NVMe-oF target to create local controller
+			$rpc_py bdev_nvme_attach_controller -b $controller -t tcp -a $tcp_addr -n $nqn -s $port -f ipv4 \
+				--ctrlr_loss_timeout_sec=2 --fast_io_fail_timeout_sec=2 --reconnect_delay_sec=1
+		done
+
+		# Build RAID1 array from attached NVMe controllers
+		local bdevs=""
+		for ((i = 0; i < num_base_bdevs; i++)); do
+			bdevs+="${controller_prefix}${i}n1 "
+		done
+		$rpc_py bdev_raid_create -n $raid_name -r raid1 -b "'$bdevs'"
+
+		# Export RAID1 bdev via NVMe-oF
+		$rpc_py nvmf_create_subsystem $raid_nqn -s $spdk_raid_serial -a
+		$rpc_py nvmf_subsystem_add_ns $raid_nqn $raid_name
+		$rpc_py nvmf_subsystem_add_listener $raid_nqn -t TCP -a $tcp_addr -s $raid_port
+
+		# Connect to RAID1 device from host side
+		sleep 0.1
+		local dev_before dev_after new_nvme_dev
+		dev_before=$(printf "%s\n" /dev/nvme*n*)
+		nvme connect -t tcp -n $raid_nqn -a $tcp_addr -s $raid_port --ctrl-loss-tmo=0
+		sleep 0.1
+		dev_after=$(printf "%s\n" /dev/nvme*n*)
+		new_nvme_dev=$(comm -13 <(echo "$dev_before") <(echo "$dev_after"))
+
+		# Mount filesystem and start I/O workload
+		local data_dir="$raid_uaf_tmp_dir/data"
+		mkdir -p $data_dir
+		mkfs -t xfs -f $new_nvme_dev > /dev/null 2>&1
+		mount -t xfs $new_nvme_dev $data_dir
+
+		fio --name=raid_uaf_test \
+			--directory=$data_dir \
+			--sync=1 \
+			--direct=1 \
+			--size=1G \
+			--rw=randwrite \
+			--bs=4k \
+			--ioengine=libaio \
+			--iodepth=32 \
+			--numjobs=10 \
+			--timeout=60000 \
+			--time_based=1 \
+			--group_reporting \
+			--output-format=terse \
+			&
+
+		local fio_pid=$!
+		# Wait for some time to let I/O go through base bdevs
+		sleep 4
+
+		# Trigger UAF race condition: force controller disconnects during active I/O
+		for ((i = 0; i < num_base_bdevs - 1; i++)); do
+			local nqn="${bdev_nqn_prefix}$i"
+			local port=$((base_port + i))
+			$rpc_py nvmf_subsystem_remove_listener $nqn -t tcp -a $tcp_addr -s $port 2> /dev/null || true
+			sleep 0.5
+		done
+
+		# Wait for UAF race condition: fast_io_fail_timeout_sec (2s) expires,
+		# causing base bdev removal while NVMe module attempts I/O abort on
+		# already-freed core channel pointers
+		sleep 6
+
+		killprocess $fio_pid 2> /dev/null || true
+		umount -fl $new_nvme_dev 2> /dev/null || true
+		nvme disconnect -n $raid_nqn 2> /dev/null || true
+		rm -rf $raid_uaf_tmp_dir
+		if ! kill -0 $spdk_pid 2> /dev/null; then
+			echo "spdk_tgt crashed during iteration $iteration"
+			return 1
+		else
+			killprocess $spdk_pid 2> /dev/null || true
+		fi
+	done
+
+	return 0
+}
+
 function raid_resize_data_offset_test() {
 
 	$rootdir/test/app/bdev_svc/bdev_svc -i 0 -L bdev_raid &
@@ -952,6 +1151,8 @@ mkdir -p "$tmp_dir"
 trap 'cleanup; exit 1' EXIT
 
 base_blocklen=512
+
+run_test "raid_io_resource_dependence" raid_io_resource_dependence
 
 run_test "raid1_resize_data_offset_test" raid_resize_data_offset_test
 
@@ -1017,6 +1218,8 @@ base_malloc_params="-m 32 -i"
 run_test "raid_state_function_test_sb_md_interleaved" raid_state_function_test raid1 2 true
 run_test "raid_superblock_test_md_interleaved" raid_superblock_test raid1 2
 run_test "raid_rebuild_test_sb_md_interleaved" raid_rebuild_test raid1 2 true false false
+
+run_test "raid_nvmf_uaf_test" raid_nvmf_uaf_test 10 10
 
 trap - EXIT
 cleanup

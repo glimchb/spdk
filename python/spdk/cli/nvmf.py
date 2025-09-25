@@ -6,15 +6,14 @@
 #
 
 import sys
-import spdk.rpc as rpc  # noqa
+from spdk.rpc.cmd_parser import strip_globals, apply_defaults, group_as
 from spdk.rpc.client import print_dict, print_json, print_array  # noqa
 
 
 def add_parser(subparsers):
 
     def nvmf_set_max_subsystems(args):
-        rpc.nvmf.nvmf_set_max_subsystems(args.client,
-                                         max_subsystems=args.max_subsystems)
+        args.client.nvmf_set_max_subsystems(max_subsystems=args.max_subsystems)
 
     p = subparsers.add_parser('nvmf_set_max_subsystems',
                               help='Set the maximum number of NVMf target subsystems')
@@ -22,16 +21,28 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_set_max_subsystems)
 
     def nvmf_set_config(args):
-        rpc.nvmf.nvmf_set_config(args.client,
-                                 passthru_identify_ctrlr=args.passthru_identify_ctrlr,
-                                 poll_groups_mask=args.poll_groups_mask,
-                                 discovery_filter=args.discovery_filter,
-                                 dhchap_digests=args.dhchap_digests,
-                                 dhchap_dhgroups=args.dhchap_dhgroups)
+        admin_cmd_passthru = args.passthru_admin_cmds or []
+        if args.passthru_identify_ctrlr:
+            print('WARNING: -i|--passthru-identify-ctrlr is deprecated, please use -p|--passthru-admin-cmds identify_ctrlr.',
+                  file=sys.stderr)
+            admin_cmd_passthru.append('identify_ctrlr')
+        all_admin_cmd_passthru = ('identify_ctrlr', 'vendor_specific')
+        if 'all' in admin_cmd_passthru:
+            admin_cmd_passthru = {cmd: True for cmd in all_admin_cmd_passthru}
+        else:
+            admin_cmd_passthru = {cmd: True for cmd in admin_cmd_passthru}
+        args.client.nvmf_set_config(admin_cmd_passthru=admin_cmd_passthru,
+                                    poll_groups_mask=args.poll_groups_mask,
+                                    discovery_filter=args.discovery_filter,
+                                    dhchap_digests=args.dhchap_digests,
+                                    dhchap_dhgroups=args.dhchap_dhgroups)
 
     p = subparsers.add_parser('nvmf_set_config', help='Set NVMf target config')
     p.add_argument('-i', '--passthru-identify-ctrlr', help="""Passthrough fields like serial number and model number
-    when the controller has a single namespace that is an NVMe bdev""", action='store_true')
+    when the controller has a single namespace that is an NVMe bdev (deprecated)""", action='store_true')
+    p.add_argument('-p', '--passthru-admin-cmds', help="""Comma-separated list of admin commands to be passthru
+                   when the controller has a single namespace that is an NVMe bdev.
+                   Available options are: all, identify_ctrlr, vendor_specific""", type=lambda d: d.split(','))
     p.add_argument('-m', '--poll-groups-mask', help='Set cpumask for NVMf poll groups (optional)', type=str)
     p.add_argument('-d', '--discovery-filter', help="""Set discovery filter (optional), possible values are: `match_any` (default) or
          comma separated values: `transport`, `address`, `svcid`""", type=str)
@@ -42,7 +53,9 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_set_config)
 
     def nvmf_create_transport(args):
-        rpc.nvmf.nvmf_create_transport(**vars(args))
+        params = strip_globals(vars(args))
+        params = apply_defaults(params, no_srq=False, c2h_success=True)
+        args.client.nvmf_create_transport(**params)
 
     p = subparsers.add_parser('nvmf_create_transport', help='Create NVMf transport')
     p.add_argument('-t', '--trtype', help='Transport type (ex. RDMA)', type=str, required=True)
@@ -84,7 +97,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_create_transport)
 
     def nvmf_get_transports(args):
-        print_dict(rpc.nvmf.nvmf_get_transports(args.client, trtype=args.trtype, tgt_name=args.tgt_name))
+        print_dict(args.client.nvmf_get_transports(trtype=args.trtype, tgt_name=args.tgt_name))
 
     p = subparsers.add_parser('nvmf_get_transports', help='Display nvmf transports or required transport')
     p.add_argument('--trtype', help='Transport type (optional)')
@@ -92,7 +105,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_get_transports)
 
     def nvmf_get_subsystems(args):
-        print_dict(rpc.nvmf.nvmf_get_subsystems(args.client, nqn=args.nqn, tgt_name=args.tgt_name))
+        print_dict(args.client.nvmf_get_subsystems(nqn=args.nqn, tgt_name=args.tgt_name))
 
     p = subparsers.add_parser('nvmf_get_subsystems', help='Display nvmf subsystems or required subsystem')
     p.add_argument('nqn', help='Subsystem NQN (optional)', nargs="?")
@@ -100,7 +113,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_get_subsystems)
 
     def nvmf_create_subsystem(args):
-        rpc.nvmf.nvmf_create_subsystem(args.client,
+        args.client.nvmf_create_subsystem(
                                        nqn=args.nqn,
                                        tgt_name=args.tgt_name,
                                        serial_number=args.serial_number,
@@ -112,7 +125,8 @@ def add_parser(subparsers):
                                        max_cntlid=args.max_cntlid,
                                        max_discard_size_kib=args.max_discard_size,
                                        max_write_zeroes_size_kib=args.max_write_zeroes_size,
-                                       passthrough=args.passthrough)
+                                       passthrough=args.passthrough,
+                                       enable_nssr=args.enable_nssr)
 
     p = subparsers.add_parser('nvmf_create_subsystem', help='Create an NVMe-oF subsystem')
     p.add_argument('nqn', help='Subsystem NQN (ASCII)')
@@ -133,10 +147,11 @@ def add_parser(subparsers):
     p.add_argument("--max-write-zeroes-size", help="Maximum write_zeroes size (Kib)", type=int)
     p.add_argument("-p", "--passthrough", action='store_true', help="""Use NVMe passthrough for all I/O commands and namespace-directed
                    admin commands""")
+    p.add_argument("-n", "--enable_nssr", action='store_true', help="""Enable NSSR (NVMe subsystem reset) support""")
     p.set_defaults(func=nvmf_create_subsystem)
 
     def nvmf_delete_subsystem(args):
-        rpc.nvmf.nvmf_delete_subsystem(args.client,
+        args.client.nvmf_delete_subsystem(
                                        nqn=args.subsystem_nqn,
                                        tgt_name=args.tgt_name)
 
@@ -147,7 +162,12 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_delete_subsystem)
 
     def nvmf_subsystem_add_listener(args):
-        rpc.nvmf.nvmf_subsystem_add_listener(**vars(args))
+        params = strip_globals(vars(args))
+        params = apply_defaults(params, tgt_name=None)
+        params = group_as(params, 'listen_address', ['trtype', 'traddr', 'trsvcid', 'adrfam'])
+        if params.get('nqn') == 'discovery':
+            params['nqn'] = 'nqn.2014-08.org.nvmexpress.discovery'
+        args.client.nvmf_subsystem_add_listener(**params)
 
     p = subparsers.add_parser('nvmf_subsystem_add_listener', help='Add a listener to an NVMe-oF subsystem')
     p.add_argument('nqn', help='NVMe-oF subsystem NQN (\'discovery\' can be used as shortcut for discovery NQN)')
@@ -162,13 +182,11 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_subsystem_add_listener)
 
     def nvmf_subsystem_remove_listener(args):
-        rpc.nvmf.nvmf_subsystem_remove_listener(args.client,
-                                                nqn=args.nqn,
-                                                trtype=args.trtype,
-                                                traddr=args.traddr,
-                                                tgt_name=args.tgt_name,
-                                                adrfam=args.adrfam,
-                                                trsvcid=args.trsvcid)
+        params = strip_globals(vars(args))
+        params = group_as(params, 'listen_address', ['trtype', 'traddr', 'trsvcid', 'adrfam'])
+        if params.get('nqn') == 'discovery':
+            params['nqn'] = 'nqn.2014-08.org.nvmexpress.discovery'
+        args.client.nvmf_subsystem_remove_listener(**params)
 
     p = subparsers.add_parser('nvmf_subsystem_remove_listener', help='Remove a listener from an NVMe-oF subsystem')
     p.add_argument('nqn', help='NVMe-oF subsystem NQN (\'discovery\' can be used as shortcut for discovery NQN)')
@@ -180,15 +198,9 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_subsystem_remove_listener)
 
     def nvmf_subsystem_listener_set_ana_state(args):
-        rpc.nvmf.nvmf_subsystem_listener_set_ana_state(args.client,
-                                                       nqn=args.nqn,
-                                                       ana_state=args.ana_state,
-                                                       trtype=args.trtype,
-                                                       traddr=args.traddr,
-                                                       tgt_name=args.tgt_name,
-                                                       adrfam=args.adrfam,
-                                                       trsvcid=args.trsvcid,
-                                                       anagrpid=args.anagrpid)
+        params = strip_globals(vars(args))
+        params = group_as(params, 'listen_address', ['trtype', 'traddr', 'trsvcid', 'adrfam'])
+        args.client.nvmf_subsystem_listener_set_ana_state(**params)
 
     p = subparsers.add_parser('nvmf_subsystem_listener_set_ana_state', help='Set ANA state of a listener for an NVMe-oF subsystem')
     p.add_argument('nqn', help='NVMe-oF subsystem NQN')
@@ -202,7 +214,12 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_subsystem_listener_set_ana_state)
 
     def nvmf_discovery_add_referral(args):
-        rpc.nvmf.nvmf_discovery_add_referral(**vars(args))
+        params = strip_globals(vars(args))
+        params = apply_defaults(params, tgt_name=None)
+        params = group_as(params, 'address', ['trtype', 'traddr', 'trsvcid', 'adrfam'])
+        if params.get('subnqn') == 'discovery':
+            params['subnqn'] = 'nqn.2014-08.org.nvmexpress.discovery'
+        args.client.nvmf_discovery_add_referral(**params)
 
     p = subparsers.add_parser('nvmf_discovery_add_referral', help='Add a discovery service referral to an NVMe-oF target')
     p.add_argument('-t', '--trtype', help='NVMe-oF transport type: e.g., rdma', required=True)
@@ -216,13 +233,11 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_discovery_add_referral)
 
     def nvmf_discovery_remove_referral(args):
-        rpc.nvmf.nvmf_discovery_remove_referral(args.client,
-                                                trtype=args.trtype,
-                                                traddr=args.traddr,
-                                                tgt_name=args.tgt_name,
-                                                adrfam=args.adrfam,
-                                                trsvcid=args.trsvcid,
-                                                subnqn=args.subnqn)
+        params = strip_globals(vars(args))
+        params = group_as(params, 'address', ['trtype', 'traddr', 'trsvcid', 'adrfam'])
+        if params.get('subnqn') == 'discovery':
+            params['subnqn'] = 'nqn.2014-08.org.nvmexpress.discovery'
+        args.client.nvmf_discovery_remove_referral(**params)
 
     p = subparsers.add_parser('nvmf_discovery_remove_referral', help='Remove a discovery service referral from an NVMe-oF target')
     p.add_argument('-t', '--trtype', help='NVMe-oF transport type: e.g., rdma', required=True)
@@ -234,8 +249,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_discovery_remove_referral)
 
     def nvmf_discovery_get_referrals(args):
-        print_dict(rpc.nvmf.nvmf_discovery_get_referrals(args.client,
-                                                         tgt_name=args.tgt_name))
+        print_dict(args.client.nvmf_discovery_get_referrals(tgt_name=args.tgt_name))
 
     p = subparsers.add_parser('nvmf_discovery_get_referrals',
                               help='Display discovery subsystem referrals of an NVMe-oF target')
@@ -243,7 +257,11 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_discovery_get_referrals)
 
     def nvmf_subsystem_add_ns(args):
-        rpc.nvmf.nvmf_subsystem_add_ns(**vars(args))
+        params = strip_globals(vars(args))
+        params = apply_defaults(params, tgt_name=None)
+        params = group_as(params, 'namespace', ['bdev_name', 'ptpl_file', 'nsid',
+                          'nguid', 'eui64', 'uuid', 'anagrpid', 'no_auto_visible', 'hide_metadata'])
+        args.client.nvmf_subsystem_add_ns(**params)
 
     p = subparsers.add_parser('nvmf_subsystem_add_ns', help='Add a namespace to an NVMe-oF subsystem')
     p.add_argument('nqn', help='NVMe-oF subsystem NQN')
@@ -262,7 +280,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_subsystem_add_ns)
 
     def nvmf_subsystem_set_ns_ana_group(args):
-        rpc.nvmf.nvmf_subsystem_set_ns_ana_group(args.client,
+        args.client.nvmf_subsystem_set_ns_ana_group(
                                                  nqn=args.nqn,
                                                  nsid=args.nsid,
                                                  anagrpid=args.anagrpid,
@@ -276,7 +294,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_subsystem_set_ns_ana_group)
 
     def nvmf_subsystem_remove_ns(args):
-        rpc.nvmf.nvmf_subsystem_remove_ns(args.client,
+        args.client.nvmf_subsystem_remove_ns(
                                           nqn=args.nqn,
                                           nsid=args.nsid,
                                           tgt_name=args.tgt_name)
@@ -288,12 +306,11 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_subsystem_remove_ns)
 
     def nvmf_ns_add_host(args):
-        rpc.nvmf.nvmf_ns_visible(True,
-                                 args.client,
-                                 nqn=args.nqn,
-                                 nsid=args.nsid,
-                                 host=args.host,
-                                 tgt_name=args.tgt_name)
+        args.client.nvmf_ns_add_host(
+                                    nqn=args.nqn,
+                                    nsid=args.nsid,
+                                    host=args.host,
+                                    tgt_name=args.tgt_name)
 
     def nvmf_ns_visible_add_args(p):
         p.add_argument('nqn', help='NVMe-oF subsystem NQN')
@@ -306,19 +323,18 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_ns_add_host)
 
     def nvmf_ns_remove_host(args):
-        rpc.nvmf.nvmf_ns_visible(False,
-                                 args.client,
-                                 nqn=args.nqn,
-                                 nsid=args.nsid,
-                                 host=args.host,
-                                 tgt_name=args.tgt_name)
+        args.client.nvmf_ns_remove_host(
+                                    nqn=args.nqn,
+                                    nsid=args.nsid,
+                                    host=args.host,
+                                    tgt_name=args.tgt_name)
 
     p = subparsers.add_parser('nvmf_ns_remove_host', help='Make namespace not visible to controllers of host')
     nvmf_ns_visible_add_args(p)
     p.set_defaults(func=nvmf_ns_remove_host)
 
     def nvmf_subsystem_add_host(args):
-        rpc.nvmf.nvmf_subsystem_add_host(args.client,
+        args.client.nvmf_subsystem_add_host(
                                          nqn=args.nqn,
                                          host=args.host,
                                          tgt_name=args.tgt_name,
@@ -336,7 +352,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_subsystem_add_host)
 
     def nvmf_subsystem_remove_host(args):
-        rpc.nvmf.nvmf_subsystem_remove_host(args.client,
+        args.client.nvmf_subsystem_remove_host(
                                             nqn=args.nqn,
                                             host=args.host,
                                             tgt_name=args.tgt_name)
@@ -348,7 +364,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_subsystem_remove_host)
 
     def nvmf_subsystem_set_keys(args):
-        rpc.nvmf.nvmf_subsystem_set_keys(args.client,
+        args.client.nvmf_subsystem_set_keys(
                                          nqn=args.nqn,
                                          host=args.host,
                                          tgt_name=args.tgt_name,
@@ -364,9 +380,9 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_subsystem_set_keys)
 
     def nvmf_subsystem_allow_any_host(args):
-        rpc.nvmf.nvmf_subsystem_allow_any_host(args.client,
+        args.client.nvmf_subsystem_allow_any_host(
                                                nqn=args.nqn,
-                                               disable=args.disable,
+                                               allow_any_host=False if args.disable else True,
                                                tgt_name=args.tgt_name)
 
     p = subparsers.add_parser('nvmf_subsystem_allow_any_host', help='Allow any host to connect to the subsystem')
@@ -377,7 +393,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_subsystem_allow_any_host)
 
     def nvmf_subsystem_get_controllers(args):
-        print_dict(rpc.nvmf.nvmf_subsystem_get_controllers(args.client,
+        print_dict(args.client.nvmf_subsystem_get_controllers(
                                                            nqn=args.nqn,
                                                            tgt_name=args.tgt_name))
 
@@ -388,7 +404,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_subsystem_get_controllers)
 
     def nvmf_subsystem_get_qpairs(args):
-        print_dict(rpc.nvmf.nvmf_subsystem_get_qpairs(args.client,
+        print_dict(args.client.nvmf_subsystem_get_qpairs(
                                                       nqn=args.nqn,
                                                       tgt_name=args.tgt_name))
 
@@ -399,7 +415,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_subsystem_get_qpairs)
 
     def nvmf_subsystem_get_listeners(args):
-        print_dict(rpc.nvmf.nvmf_subsystem_get_listeners(args.client,
+        print_dict(args.client.nvmf_subsystem_get_listeners(
                                                          nqn=args.nqn,
                                                          tgt_name=args.tgt_name))
 
@@ -410,7 +426,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_subsystem_get_listeners)
 
     def nvmf_get_stats(args):
-        print_dict(rpc.nvmf.nvmf_get_stats(args.client, tgt_name=args.tgt_name))
+        print_dict(args.client.nvmf_get_stats(tgt_name=args.tgt_name))
 
     p = subparsers.add_parser(
         'nvmf_get_stats', help='Display current statistics for NVMf subsystem')
@@ -418,7 +434,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_get_stats)
 
     def nvmf_set_crdt(args):
-        print_dict(rpc.nvmf.nvmf_set_crdt(args.client, args.crdt1, args.crdt2, args.crdt3))
+        print_dict(args.client.nvmf_set_crdt(crdt1=args.crdt1, crdt2=args.crdt2, crdt3=args.crdt3))
 
     p = subparsers.add_parser(
         'nvmf_set_crdt',
@@ -430,7 +446,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_set_crdt)
 
     def nvmf_publish_mdns_prr(args):
-        rpc.nvmf.nvmf_publish_mdns_prr(args.client, args.tgt_name)
+        args.client.nvmf_publish_mdns_prr(tgt_name=args.tgt_name)
 
     p = subparsers.add_parser('nvmf_publish_mdns_prr',
                               help='Publish pull registration request through mdns')
@@ -438,7 +454,7 @@ def add_parser(subparsers):
     p.set_defaults(func=nvmf_publish_mdns_prr)
 
     def nvmf_stop_mdns_prr(args):
-        rpc.nvmf.nvmf_stop_mdns_prr(args.client, args.tgt_name)
+        args.client.nvmf_stop_mdns_prr(tgt_name=args.tgt_name)
 
     p = subparsers.add_parser('nvmf_stop_mdns_prr',
                               help='Stop publishing pull registration request through mdns')

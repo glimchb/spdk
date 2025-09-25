@@ -240,10 +240,10 @@ nvme_tcp_ut_next_sge(void *cb_arg, void **address, uint32_t *length)
 static void
 test_nvme_tcp_build_sgl_request(void)
 {
-	struct nvme_tcp_qpair tqpair;
-	struct spdk_nvme_ctrlr ctrlr = {{0}};
-	struct nvme_tcp_req tcp_req = {0};
-	struct nvme_request req = {{0}};
+	struct nvme_tcp_qpair tqpair = {};
+	struct spdk_nvme_ctrlr ctrlr = {};
+	struct nvme_tcp_req tcp_req = {};
+	struct nvme_request req = {};
 	struct nvme_tcp_ut_bdev_io bio;
 	uint64_t i;
 	int rc;
@@ -468,9 +468,9 @@ static void
 test_nvme_tcp_req_complete_safe(void)
 {
 	bool rc;
-	struct nvme_tcp_req	tcp_req = {0};
-	struct nvme_request	req = {{0}};
-	struct nvme_tcp_qpair	tqpair = {{0}};
+	struct nvme_tcp_req	tcp_req = {};
+	struct nvme_request	req = {};
+	struct nvme_tcp_qpair	tqpair = {};
 
 	tcp_req.req = &req;
 	tcp_req.req->qpair = &tqpair.qpair;
@@ -534,8 +534,8 @@ test_nvme_tcp_req_init(void)
 {
 	struct nvme_tcp_qpair tqpair = {};
 	struct nvme_request req = {};
-	struct nvme_tcp_req tcp_req = {0};
-	struct spdk_nvme_ctrlr ctrlr = {{0}};
+	struct nvme_tcp_req tcp_req = {};
+	struct spdk_nvme_ctrlr ctrlr = {};
 	struct nvme_tcp_ut_bdev_io bio = {};
 	int rc;
 
@@ -596,7 +596,7 @@ test_nvme_tcp_req_init(void)
 static void
 test_nvme_tcp_req_get(void)
 {
-	struct nvme_tcp_req tcp_req = {0};
+	struct nvme_tcp_req tcp_req = {};
 	struct nvme_tcp_qpair tqpair = {};
 	struct nvme_tcp_pdu send_pdu = {};
 
@@ -822,17 +822,19 @@ test_nvme_tcp_qpair_write_pdu(void)
 static void
 test_nvme_tcp_qpair_set_recv_state(void)
 {
-	struct nvme_tcp_qpair tqpair = {};
+	struct nvme_tcp_ctrlr tctrlr = {};
+	struct nvme_tcp_qpair _tqpair = {.qpair = {.ctrlr = &tctrlr.ctrlr}};
+	struct nvme_tcp_qpair *tqpair = &_tqpair;
 
 	/* case1: The recv state of tqpair is same with the state to be set */
-	tqpair.recv_state = NVME_TCP_PDU_RECV_STATE_ERROR;
-	nvme_tcp_qpair_set_recv_state(&tqpair, NVME_TCP_PDU_RECV_STATE_ERROR);
-	CU_ASSERT(tqpair.recv_state == NVME_TCP_PDU_RECV_STATE_ERROR);
+	tqpair->recv_state = NVME_TCP_PDU_RECV_STATE_ERROR;
+	nvme_tcp_qpair_set_recv_state(tqpair, NVME_TCP_PDU_RECV_STATE_ERROR);
+	CU_ASSERT(tqpair->recv_state == NVME_TCP_PDU_RECV_STATE_ERROR);
 
 	/* Different state will be set accordingly */
-	tqpair.recv_state = NVME_TCP_PDU_RECV_STATE_AWAIT_PDU_READY;
-	nvme_tcp_qpair_set_recv_state(&tqpair, 0xff);
-	CU_ASSERT(tqpair.recv_state == 0xff);
+	tqpair->recv_state = NVME_TCP_PDU_RECV_STATE_AWAIT_PDU_READY;
+	nvme_tcp_qpair_set_recv_state(tqpair, 0xff);
+	CU_ASSERT(tqpair->recv_state == 0xff);
 }
 
 static void
@@ -872,7 +874,8 @@ test_nvme_tcp_alloc_reqs(void)
 static void
 test_nvme_tcp_qpair_send_h2c_term_req(void)
 {
-	struct nvme_tcp_qpair tqpair = {};
+	struct nvme_tcp_ctrlr tctrlr = {};
+	struct nvme_tcp_qpair tqpair = {.qpair = {.ctrlr = &tctrlr.ctrlr}};
 	struct spdk_nvme_tcp_stat stats = {};
 	struct nvme_tcp_pdu pdu = {}, recv_pdu = {}, send_pdu = {};
 	enum spdk_nvme_tcp_term_req_fes fes = SPDK_NVME_TCP_TERM_REQ_FES_INVALID_HEADER_FIELD;
@@ -904,7 +907,8 @@ test_nvme_tcp_qpair_send_h2c_term_req(void)
 static void
 test_nvme_tcp_pdu_ch_handle(void)
 {
-	struct nvme_tcp_qpair tqpair = {};
+	struct nvme_tcp_ctrlr tctrlr = {};
+	struct nvme_tcp_qpair tqpair = {.qpair = {.ctrlr = &tctrlr.ctrlr}};
 	struct spdk_nvme_tcp_stat stats = {};
 	struct nvme_tcp_pdu send_pdu = {}, recv_pdu = {};
 
@@ -1050,7 +1054,7 @@ test_nvme_tcp_qpair_connect_sock(void)
 {
 	struct nvme_tcp_ctrlr tctrlr = {};
 	struct spdk_nvme_ctrlr *ctrlr = &tctrlr.ctrlr;
-	struct nvme_tcp_qpair tqpair = {};
+	struct nvme_tcp_qpair tqpair = {.qpair = {.ctrlr = &tctrlr.ctrlr}};
 	int rc;
 
 	tqpair.qpair.trtype = SPDK_NVME_TRANSPORT_TCP;
@@ -1215,7 +1219,8 @@ test_nvme_tcp_c2h_payload_handle(void)
 static void
 test_nvme_tcp_icresp_handle(void)
 {
-	struct nvme_tcp_qpair tqpair = {};
+	struct nvme_tcp_ctrlr tctrlr = {};
+	struct nvme_tcp_qpair tqpair = {.qpair = {.ctrlr = &tctrlr.ctrlr}};
 	struct spdk_nvme_tcp_stat stats = {};
 	struct nvme_tcp_pdu pdu = {};
 	struct nvme_tcp_pdu send_pdu = {};

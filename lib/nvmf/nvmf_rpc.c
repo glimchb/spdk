@@ -331,6 +331,7 @@ struct rpc_subsystem_create {
 	uint64_t max_discard_size_kib;
 	uint64_t max_write_zeroes_size_kib;
 	bool passthrough;
+	bool enable_nssr;
 };
 
 static const struct spdk_json_object_decoder rpc_subsystem_create_decoders[] = {
@@ -346,6 +347,7 @@ static const struct spdk_json_object_decoder rpc_subsystem_create_decoders[] = {
 	{"max_discard_size_kib", offsetof(struct rpc_subsystem_create, max_discard_size_kib), spdk_json_decode_uint64, true},
 	{"max_write_zeroes_size_kib", offsetof(struct rpc_subsystem_create, max_write_zeroes_size_kib), spdk_json_decode_uint64, true},
 	{"passthrough", offsetof(struct rpc_subsystem_create, passthrough), spdk_json_decode_bool, true},
+	{"enable_nssr", offsetof(struct rpc_subsystem_create, enable_nssr), spdk_json_decode_bool, true},
 };
 
 static void
@@ -453,6 +455,7 @@ rpc_nvmf_create_subsystem(struct spdk_jsonrpc_request *request,
 	}
 
 	subsystem->passthrough = req->passthrough;
+	subsystem->nssr_enabled = req->enable_nssr;
 
 	rc = spdk_nvmf_subsystem_start(subsystem,
 				       rpc_nvmf_subsystem_started,
@@ -2831,6 +2834,21 @@ rpc_nvmf_get_stats(struct spdk_jsonrpc_request *request,
 
 SPDK_RPC_REGISTER("nvmf_get_stats", rpc_nvmf_get_stats, SPDK_RPC_RUNTIME)
 
+static const char *
+nvmf_cntrltype_str(enum spdk_nvme_ctrlr_type type)
+{
+	switch (type) {
+	case SPDK_NVME_CTRLR_IO:
+		return "io";
+	case SPDK_NVME_CTRLR_DISCOVERY:
+		return "discovery";
+	case SPDK_NVME_CTRLR_ADMINISTRATIVE:
+		return "administrative";
+	default:
+		return "unknown";
+	}
+}
+
 static void
 dump_nvmf_ctrlr(struct spdk_json_write_ctx *w, struct spdk_nvmf_ctrlr *ctrlr)
 {
@@ -2839,6 +2857,7 @@ dump_nvmf_ctrlr(struct spdk_json_write_ctx *w, struct spdk_nvmf_ctrlr *ctrlr)
 	spdk_json_write_object_begin(w);
 
 	spdk_json_write_named_uint32(w, "cntlid", ctrlr->cntlid);
+	spdk_json_write_named_string(w, "cntrltype", nvmf_cntrltype_str(ctrlr->cdata.cntrltype));
 	spdk_json_write_named_string(w, "hostnqn", ctrlr->hostnqn);
 	spdk_json_write_named_uuid(w, "hostid", &ctrlr->hostid);
 

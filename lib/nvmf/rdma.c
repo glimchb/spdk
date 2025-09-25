@@ -387,6 +387,10 @@ struct spdk_nvmf_rdma_qpair {
 
 	/* Indicate that nvmf_rdma_close_qpair is called */
 	bool					to_close;
+
+	/* Save the listen_trid by rqpair itself instead of get it from listen_id
+	 * everytime, because the listen_id may be freed before the qpair is destroyed */
+	struct spdk_nvme_transport_id		listen_trid;
 };
 
 struct spdk_nvmf_rdma_poller_stat {
@@ -1196,7 +1200,7 @@ request_transfer_out(struct spdk_nvmf_request *req, int *data_posted)
 	 */
 	first = &rdma_req->rsp.wr;
 
-	if (spdk_unlikely(rsp->status.sc != SPDK_NVME_SC_SUCCESS)) {
+	if (spdk_unlikely(spdk_nvme_cpl_is_error(rsp))) {
 		/* On failure, data was not read from the controller. So clear the
 		 * number of outstanding data WRs to zero.
 		 */
@@ -1271,6 +1275,10 @@ nvmf_rdma_event_reject(struct rdma_cm_id *id, enum spdk_nvmf_rdma_transport_erro
 
 	rdma_reject(id, &rej_data, sizeof(rej_data));
 }
+
+static void nvmf_rdma_trid_from_cm_id(struct rdma_cm_id *id,
+				      struct spdk_nvme_transport_id *trid,
+				      bool peer);
 
 static int
 nvmf_rdma_connect(struct spdk_nvmf_transport *transport, struct rdma_cm_event *event)
@@ -1389,6 +1397,8 @@ nvmf_rdma_connect(struct spdk_nvmf_transport *transport, struct rdma_cm_event *e
 	event->id->context = &rqpair->qpair;
 
 	spdk_nvmf_tgt_new_qpair(transport->tgt, &rqpair->qpair);
+
+	nvmf_rdma_trid_from_cm_id(rqpair->listen_id, &rqpair->listen_trid, false);
 
 	return 0;
 }
@@ -1877,6 +1887,9 @@ nvmf_rdma_request_parse_icd(struct spdk_nvmf_rdma_transport *rtransport,
 	req->data_from_pool = false;
 	req->length = sgl->unkeyed.length;
 
+	assert(rdma_req->recv != NULL);
+	assert(rdma_req->recv->buf != NULL);
+
 	req->iov[0].iov_base = rdma_req->recv->buf + offset;
 	req->iov[0].iov_len = req->length;
 	req->iovcnt = 1;
@@ -1988,8 +2001,9 @@ _nvmf_rdma_request_free(struct spdk_nvmf_rdma_request *rdma_req,
 	nvmf_rdma_request_free_data(rdma_req, rtransport);
 	rdma_req->req.length = 0;
 	rdma_req->req.iovcnt = 0;
+	rdma_req->req.raw = 0; /* clear all flags */
+	rdma_req->req.cmd_cb_fn = NULL;
 	rdma_req->offset = 0;
-	rdma_req->req.dif_enabled = false;
 	rdma_req->fused_failed = false;
 	rdma_req->transfer_wr = NULL;
 	if (rdma_req->fused_pair) {
@@ -2390,7 +2404,7 @@ nvmf_rdma_request_process(struct spdk_nvmf_rdma_transport *rtransport,
 		case RDMA_REQUEST_STATE_EXECUTED:
 			spdk_trace_record(TRACE_RDMA_REQUEST_STATE_EXECUTED, 0, 0,
 					  (uintptr_t)rdma_req, (uintptr_t)rqpair);
-			if (rsp->status.sc == SPDK_NVME_SC_SUCCESS &&
+			if (spdk_nvme_cpl_is_success(rsp) &&
 			    rdma_req->req.xfer == SPDK_NVME_DATA_CONTROLLER_TO_HOST) {
 				STAILQ_INSERT_TAIL(&rqpair->pending_rdma_write_queue, rdma_req, state_link);
 				rdma_req->state = RDMA_REQUEST_STATE_DATA_TRANSFER_TO_HOST_PENDING;
@@ -2970,9 +2984,9 @@ nvmf_rdma_destroy(struct spdk_nvmf_transport *transport,
 	return 0;
 }
 
-static int nvmf_rdma_trid_from_cm_id(struct rdma_cm_id *id,
-				     struct spdk_nvme_transport_id *trid,
-				     bool peer);
+static void nvmf_rdma_trid_from_cm_id(struct rdma_cm_id *id,
+				      struct spdk_nvme_transport_id *trid,
+				      bool peer);
 
 static bool nvmf_rdma_rescan_devices(struct spdk_nvmf_rdma_transport *rtransport);
 
@@ -4969,7 +4983,7 @@ nvmf_rdma_poll_group_poll(struct spdk_nvmf_transport_poll_group *group)
 	return rc2 ? rc2 : count;
 }
 
-static int
+static void
 nvmf_rdma_trid_from_cm_id(struct rdma_cm_id *id,
 			  struct spdk_nvme_transport_id *trid,
 			  bool peer)
@@ -5013,11 +5027,9 @@ nvmf_rdma_trid_from_cm_id(struct rdma_cm_id *id,
 		break;
 	}
 	default:
-		return -1;
-
+		SPDK_ERRLOG("Unsupported address family %d\n", saddr->sa_family);
+		assert(false);
 	}
-
-	return 0;
 }
 
 static int
@@ -5028,7 +5040,14 @@ nvmf_rdma_qpair_get_peer_trid(struct spdk_nvmf_qpair *qpair,
 
 	rqpair = SPDK_CONTAINEROF(qpair, struct spdk_nvmf_rdma_qpair, qpair);
 
-	return nvmf_rdma_trid_from_cm_id(rqpair->cm_id, trid, true);
+	if (rqpair->cm_id == NULL) {
+		SPDK_WARNLOG("cm_id is NULL for qpair %p\n", qpair);
+		return -1;
+	}
+
+	nvmf_rdma_trid_from_cm_id(rqpair->cm_id, trid, true);
+
+	return 0;
 }
 
 static int
@@ -5039,7 +5058,14 @@ nvmf_rdma_qpair_get_local_trid(struct spdk_nvmf_qpair *qpair,
 
 	rqpair = SPDK_CONTAINEROF(qpair, struct spdk_nvmf_rdma_qpair, qpair);
 
-	return nvmf_rdma_trid_from_cm_id(rqpair->cm_id, trid, false);
+	if (rqpair->cm_id == NULL) {
+		SPDK_WARNLOG("cm_id is NULL for qpair %p\n", qpair);
+		return -1;
+	}
+
+	nvmf_rdma_trid_from_cm_id(rqpair->cm_id, trid, false);
+
+	return 0;
 }
 
 static int
@@ -5050,7 +5076,9 @@ nvmf_rdma_qpair_get_listen_trid(struct spdk_nvmf_qpair *qpair,
 
 	rqpair = SPDK_CONTAINEROF(qpair, struct spdk_nvmf_rdma_qpair, qpair);
 
-	return nvmf_rdma_trid_from_cm_id(rqpair->listen_id, trid, false);
+	memcpy(trid, &rqpair->listen_trid, sizeof(struct spdk_nvme_transport_id));
+
+	return 0;
 }
 
 void

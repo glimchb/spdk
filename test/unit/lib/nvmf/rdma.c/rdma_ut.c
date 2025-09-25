@@ -168,7 +168,7 @@ test_spdk_nvmf_rdma_request_parse_sgl(void)
 	union nvmf_c2h_msg cpl;
 	union nvmf_h2c_msg cmd;
 	struct spdk_nvme_sgl_descriptor *sgl;
-	struct spdk_nvme_sgl_descriptor sgl_desc[SPDK_NVMF_MAX_SGL_ENTRIES] = {{0}};
+	struct spdk_nvme_sgl_descriptor sgl_desc[SPDK_NVMF_MAX_SGL_ENTRIES] = {};
 	struct spdk_nvmf_rdma_request_data data;
 	int rc, i;
 	uint32_t sgl_length;
@@ -435,6 +435,7 @@ create_recv(struct spdk_nvmf_rdma_qpair *rqpair, enum spdk_nvme_nvm_opcode opc)
 
 	rdma_recv = calloc(1, sizeof(*rdma_recv));
 	rdma_recv->qpair = rqpair;
+	rdma_recv->buf = (void *)0xDDDD;
 	cmd = calloc(1, sizeof(*cmd));
 	rdma_recv->sgl[0].addr = (uintptr_t)cmd;
 	cmd->nvme_cmd.opc = opc;
@@ -464,6 +465,7 @@ create_req(struct spdk_nvmf_rdma_qpair *rqpair,
 
 	rdma_req = calloc(1, sizeof(*rdma_req));
 	rdma_req->recv = rdma_recv;
+	rdma_req->recv->buf = (void *)0xDDDD;
 	rdma_req->req.qpair = &rqpair->qpair;
 	rdma_req->state = RDMA_REQUEST_STATE_NEW;
 	rdma_req->data.wr.wr_id = (uintptr_t)&rdma_req->data_wr;
@@ -888,7 +890,7 @@ test_spdk_nvmf_rdma_request_parse_sgl_with_md(void)
 	union nvmf_c2h_msg cpl;
 	union nvmf_h2c_msg cmd;
 	struct spdk_nvme_sgl_descriptor *sgl;
-	struct spdk_nvme_sgl_descriptor sgl_desc[SPDK_NVMF_MAX_SGL_ENTRIES] = {{0}};
+	struct spdk_nvme_sgl_descriptor sgl_desc[SPDK_NVMF_MAX_SGL_ENTRIES] = {};
 	char data_buffer[8192];
 	struct spdk_nvmf_rdma_request_data *data = (struct spdk_nvmf_rdma_request_data *)data_buffer;
 	char data2_buffer[8192];

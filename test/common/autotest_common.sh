@@ -111,14 +111,10 @@ export SPDK_TEST_BLOCKDEV
 export SPDK_TEST_RAID
 : ${SPDK_TEST_IOAT=0}
 export SPDK_TEST_IOAT
-: ${SPDK_TEST_BLOBFS=0}
-export SPDK_TEST_BLOBFS
 : ${SPDK_TEST_VHOST_INIT=0}
 export SPDK_TEST_VHOST_INIT
 : ${SPDK_TEST_LVOL=0}
 export SPDK_TEST_LVOL
-: ${SPDK_TEST_VBDEV_COMPRESS=0}
-export SPDK_TEST_VBDEV_COMPRESS
 : ${SPDK_RUN_ASAN=0}
 export SPDK_RUN_ASAN
 : ${SPDK_RUN_UBSAN=0}
@@ -176,6 +172,8 @@ export SPDK_JSONRPC_GO_CLIENT
 export SPDK_TEST_SETUP
 : ${SPDK_TEST_NVME_INTERRUPT=0}
 export SPDK_TEST_NVME_INTERRUPT
+: ${SPDK_TEST_SKIP_NVMF_KERNEL_TESTS=0}
+export SPDK_TEST_SKIP_NVMF_KERNEL_TESTS
 
 # always test with SPDK shared objects.
 export SPDK_LIB_DIR="$rootdir/build/lib"
@@ -442,12 +440,6 @@ function get_config_params() {
 		config_params+=' --disable-unit-tests'
 	fi
 
-	if [ -f /usr/include/libpmem.h ] && [ $SPDK_TEST_VBDEV_COMPRESS -eq 1 ]; then
-		if ge "$(nasm --version | awk '{print $3}')" 2.14 && [[ $SPDK_TEST_ISAL -eq 1 ]]; then
-			config_params+=' --with-vbdev-compress --with-dpdk-compressdev'
-		fi
-	fi
-
 	if [ -d /usr/include/rbd ] && [ -d /usr/include/rados ] && [ $SPDK_TEST_RBD -eq 1 ]; then
 		config_params+=' --with-rbd'
 	fi
@@ -470,12 +462,6 @@ function get_config_params() {
 	fi
 
 	config_params+=' --enable-coverage'
-
-	if [ $SPDK_TEST_BLOBFS -eq 1 ]; then
-		if [[ -d /usr/include/fuse3 ]] || [[ -d /usr/local/include/fuse3 ]]; then
-			config_params+=' --with-fuse'
-		fi
-	fi
 
 	if [[ -f /usr/include/liburing/io_uring.h && -f /usr/include/linux/ublk_cmd.h ]]; then
 		config_params+=' --with-ublk'

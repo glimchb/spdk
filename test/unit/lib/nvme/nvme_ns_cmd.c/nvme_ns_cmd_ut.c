@@ -61,6 +61,7 @@ DEFINE_STUB(nvme_transport_ctrlr_scan_attached,
 	    int,
 	    (struct spdk_nvme_probe_ctx *probe_ctx),
 	    0);
+DEFINE_STUB(nvme_qpair_state_string, const char *, (enum nvme_qpair_state state), NULL);
 
 int
 spdk_pci_enumerate(struct spdk_pci_driver *driver, spdk_pci_enum_cb enum_cb, void *enum_ctx)
@@ -573,8 +574,8 @@ test_nvme_ns_cmd_flush(void)
 static void
 test_nvme_ns_cmd_write_zeroes(void)
 {
-	struct spdk_nvme_ns	ns = { 0 };
-	struct spdk_nvme_ctrlr	ctrlr = {{0}};
+	struct spdk_nvme_ns	ns = {};
+	struct spdk_nvme_ctrlr	ctrlr = {};
 	struct spdk_nvme_qpair	qpair;
 	spdk_nvme_cmd_cb	cb_fn = NULL;
 	void			*cb_arg = NULL;
@@ -600,8 +601,8 @@ test_nvme_ns_cmd_write_zeroes(void)
 static void
 test_nvme_ns_cmd_write_uncorrectable(void)
 {
-	struct spdk_nvme_ns	ns = { 0 };
-	struct spdk_nvme_ctrlr	ctrlr = {{0}};
+	struct spdk_nvme_ns	ns = {};
+	struct spdk_nvme_ctrlr	ctrlr = {};
 	struct spdk_nvme_qpair	qpair;
 	spdk_nvme_cmd_cb	cb_fn = NULL;
 	void			*cb_arg = NULL;

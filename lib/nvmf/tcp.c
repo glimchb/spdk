@@ -457,8 +457,9 @@ nvmf_tcp_req_get(struct spdk_nvmf_tcp_qpair *tqpair)
 	memset(&tcp_req->rsp, 0, sizeof(tcp_req->rsp));
 	tcp_req->h2c_offset = 0;
 	tcp_req->has_in_capsule_data = false;
-	tcp_req->req.dif_enabled = false;
+	tcp_req->req.raw = 0; /* clear all flags */
 	tcp_req->req.zcopy_phase = NVMF_ZCOPY_PHASE_NONE;
+	tcp_req->req.cmd_cb_fn = NULL;
 
 	TAILQ_REMOVE(&tqpair->tcp_req_free_queue, tcp_req, state_link);
 	TAILQ_INSERT_TAIL(&tqpair->tcp_req_working_queue, tcp_req, state_link);
@@ -2992,7 +2993,7 @@ request_transfer_out(struct spdk_nvmf_request *req)
 
 	tqpair = SPDK_CONTAINEROF(tcp_req->req.qpair, struct spdk_nvmf_tcp_qpair, qpair);
 	nvmf_tcp_req_set_state(tcp_req, TCP_REQUEST_STATE_TRANSFERRING_CONTROLLER_TO_HOST);
-	if (rsp->status.sc == SPDK_NVME_SC_SUCCESS && req->xfer == SPDK_NVME_DATA_CONTROLLER_TO_HOST) {
+	if (spdk_nvme_cpl_is_success(rsp) && req->xfer == SPDK_NVME_DATA_CONTROLLER_TO_HOST) {
 		nvmf_tcp_send_c2h_data(tqpair, tcp_req);
 	} else {
 		nvmf_tcp_send_capsule_resp_pdu(tcp_req, tqpair);
