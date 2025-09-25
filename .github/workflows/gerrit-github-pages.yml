@@ -33,8 +33,11 @@ jobs:
       id: vars
       working-directory: pages
       run: |
+        source "$PIP_VIRTDIR/bin/activate"
         ./update-doc.sh
         echo "spdk_sha=$(cat _doc_version.txt)" >> $GITHUB_OUTPUT
+      env:
+        PIP_VIRTDIR: /var/spdk/dependencies/pip
     - name: Commit and Push changes
       working-directory: pages
       run: |
