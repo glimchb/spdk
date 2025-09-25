@@ -27,13 +27,16 @@ jobs:
         path: spdk
     - name: Install dependencies
       run: |
+        set -x
         apt-get update
         ./spdk/scripts/pkgdep.sh --docs
     - name: Run doc generation script
       id: vars
       working-directory: pages
       run: |
-        source "$PIP_VIRTDIR/bin/activate"
+        set -x
+        ls -l "$PIP_VIRTDIR/bin/activate"
+        . "$PIP_VIRTDIR/bin/activate"
         ./update-doc.sh
         echo "spdk_sha=$(cat _doc_version.txt)" >> $GITHUB_OUTPUT
       env:
