@@ -6,19 +6,20 @@
 #  Copyright (c) 2022-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 
-import logging
 import argparse
 import importlib
+import logging
 import os
-import sys
 import shlex
-import json
+import sys
+import types
 
 sys.path.insert(0, os.path.dirname(__file__) + '/../python')
 
 import spdk.cli as cli  # noqa
-from spdk.rpc.client import print_dict, print_json, print_array, JSONRPCClient, JSONRPCGoClient, JSONRPCException  # noqa
-from spdk.rpc.helpers import deprecated_aliases  # noqa
+from spdk.rpc.client import JSONRPCDryRunClient, JSONRPCClient, JSONRPCGoClient, JSONRPCException  # noqa
+from spdk.rpc.helpers import check_called_name, hint_rpc_name  # noqa
+from spdk.rpc.cmd_parser import print_null  # noqa
 
 
 def create_parser():
@@ -53,40 +54,10 @@ def create_parser():
     parser.set_defaults(is_server=False)
     parser.add_argument('--plugin', dest='rpc_plugin', help='Module name of plugin with additional RPC commands')
     subparsers = parser.add_subparsers(help='RPC methods', dest='called_rpc_name', metavar='')
-    cli.accel.add_parser(subparsers)
-    cli.app.add_parser(subparsers)
-    cli.bdev.add_parser(subparsers)
-    cli.fsdev.add_parser(subparsers)
-    cli.iscsi.add_parser(subparsers)
-    cli.keyring.add_parser(subparsers)
-    cli.log.add_parser(subparsers)
-    cli.lvol.add_parser(subparsers)
-    cli.nbd.add_parser(subparsers)
-    cli.ublk.add_parser(subparsers)
-    cli.notify.add_parser(subparsers)
-    cli.nvmf.add_parser(subparsers)
-    cli.trace.add_parser(subparsers)
-    cli.vhost.add_parser(subparsers)
-    cli.vmd.add_parser(subparsers)
-    cli.sock.add_parser(subparsers)
-    cli.vfio_user.add_parser(subparsers)
-    cli.iobuf.add_parser(subparsers)
-    cli.parser.add_parser(subparsers)
+    for name, obj in vars(cli).items():
+        if isinstance(obj, types.ModuleType) and obj.__name__.startswith("spdk.cli."):
+            obj.add_parser(subparsers)
     return parser, subparsers
-
-
-def check_called_name(name):
-    if name in deprecated_aliases:
-        print("{} is deprecated, use {} instead.".format(name, deprecated_aliases[name]), file=sys.stderr)
-
-
-class dry_run_client:
-    def call(self, method, params=None):
-        print("Request:\n" + json.dumps({"method": method, "params": params}, indent=2))
-
-
-def null_print(arg):
-    pass
 
 
 def call_rpc_func(args):
@@ -140,18 +111,6 @@ def load_plugin(args, subparsers, plugins):
             print("Module %s not found" % rpc_module)
 
 
-def replace_arg_underscores(args):
-    # All option names are defined with dashes only - for example: --tgt-name
-    # But if user used underscores, convert them to dashes (--tgt_name => --tgt-name)
-    # SPDK was inconsistent previously and had some options with underscores, so
-    # doing this conversion ensures backward compatibility with older scripts.
-    for i in range(len(args)):
-        arg = args[i]
-        if arg.startswith('--') and "_" in arg:
-            opt, *vals = arg.split('=')
-            args[i] = '='.join([opt.replace('_', '-'), *vals])
-
-
 def main():
 
     parser, subparsers = create_parser()
@@ -159,8 +118,7 @@ def main():
     plugins = []
     load_plugin(None, subparsers, plugins)
 
-    replace_arg_underscores(sys.argv)
-
+    parser = hint_rpc_name(parser)
     args = parser.parse_args()
 
     try:
@@ -175,11 +133,10 @@ def main():
     if args.is_server:
         for input in sys.stdin:
             cmd = shlex.split(input)
-            replace_arg_underscores(cmd)
             try:
                 load_plugin(cmd, subparsers, plugins)
                 tmp_args = parser.parse_args(cmd)
-            except SystemExit as ex:
+            except SystemExit:
                 print("**STATUS=1", flush=True)
                 continue
 
@@ -198,11 +155,10 @@ def main():
                 print("**STATUS=1", flush=True)
         exit(0)
     elif args.dry_run:
-        args.client = dry_run_client()
-        global print_dict, print_json, print_array
-        print_dict = null_print
-        print_json = null_print
-        print_array = null_print
+        args.client = JSONRPCDryRunClient()
+        for name, obj in vars(cli).items():
+            if isinstance(obj, types.ModuleType) and obj.__name__.startswith("spdk.cli."):
+                obj.print_dict = obj.print_json = obj.print_array = print_null
     elif args.go_client or use_go_client:
         try:
             args.client = JSONRPCGoClient(args.server_addr,

@@ -5,8 +5,9 @@
 #  Copyright (c) 2022-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 
-import sys
-from spdk.rpc.client import print_dict, print_json, print_array  # noqa
+import argparse
+
+from spdk.rpc.cmd_parser import print_dict
 
 
 def add_parser(subparsers):
@@ -60,9 +61,9 @@ def add_parser(subparsers):
     p.set_defaults(func=log_get_print_level)
 
     def log_enable_timestamps(args):
-        ret = args.client.log_enable_timestamps(enabled=args.enabled)
+        args.client.log_enable_timestamps(enabled=args.enabled)
     p = subparsers.add_parser('log_enable_timestamps',
                               help='Enable or disable timestamps.')
-    p.add_argument('-d', '--disable', dest='enabled', default=False, action='store_false', help="Disable timestamps")
-    p.add_argument('-e', '--enable', dest='enabled', action='store_true', help="Enable timestamps")
+    p.add_argument('--timestamps', dest='enabled', action=argparse.BooleanOptionalAction,
+                   required=True, help='Enable or disable timestamps')
     p.set_defaults(func=log_enable_timestamps)

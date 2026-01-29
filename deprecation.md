@@ -19,26 +19,17 @@ The tags can be matched with the level 4 headers below.
 
 ## Deprecation Notices
 
-### util/net
+### bdev
 
-#### `spdk_net_getaddr`
+#### `bdev_get_iostat`
 
-Returning -1 and setting errno on this function is deprecated and will be changed in the 26.01
-release. This function will return negative errno values instead.
+`--name` option will be removed in the 26.05 release. `--names` option should be used instead,
+it allows providing array of devices names to obtain statistics from.
 
-### sock
+#### `spdk_bdev_initialize`, `spdk_bdev_finish`, `spdk_bdev_unregister`, `spdk_bdev_unregister_by_name`
 
-#### `spdk_sock_\*`
-
-`spdk_sock_getaddr`, `spdk_sock_close`, `spdk_sock_flush`, `spdk_sock_recv`, `spdk_sock_writev`,
-`spdk_sock_readv`, `spdk_sock_recv_next`, `spdk_sock_set_recvlowat`, `spdk_sock_set_recvbuf`,
-`spdk_sock_set_sendbuf`, `spdk_sock_group_add_sock`, `spdk_sock_group_remove_sock`,
-`spdk_sock_group_provide_buf`, `spdk_sock_group_poll`, `spdk_sock_group_poll_count`,
-`spdk_sock_group_close`, `spdk_sock_impl_get_opts`, `spdk_sock_impl_set_opts`,
-`spdk_sock_set_default_impl`, `spdk_sock_group_register_interrupt`
-
-Returning -1 and setting errno on these functions is deprecated and will be changed in the 26.01
-release. These functions will return negative errno values instead.
+Calling these functions from any thread is deprecated and will be disallowed in v26.05.
+These functions should be called from the SPDK app thread.
 
 ### gpt
 
@@ -54,3 +45,35 @@ See GitHub issue [2801](https://github.com/spdk/spdk/issues/2801) for additional
 
 New SPDK partition types should use GUID `6527994e-2c5a-4eec-9613-8f5944074e8b` which will create
 a bdev of the correct size.
+
+### nvme
+
+#### nvme_spec.h
+
+`spdk_nvme_ctrlr_data`, `spdk_nvme_cdata_oacs`
+
+LPA, OACS, CMIC bits are updated to NVMe 2.2 definitions. The old bit names will be removed in 26.05 release.
+
+`spdk_nvme_ns_data`
+
+NMIC, RESCAP, FPI and NSATTR bits are updated to NVMe 2.2 definitions. The old bit names will be removed in 26.05 release.
+
+### nvmf
+
+#### `disable_compare`
+
+`vfio_user` transport specific option is deprecated and will be removed in v26.05. Use `masked_oncs`
+option on `nvmf_create_transport` RPC, or `oncs` on `spdk_nvmf_transport_opts` C API instead.
+
+#### nvmf_transport.h
+
+`spdk_nvmf_ctrlr_connect`
+
+spdk_nvmf_ctrlr_connect() is deprecated and will be removed in 26.05 release.
+
+### app/spdk_nvme_perf
+
+#### perf_g_option
+
+The `-G` command line option is deprecated and will be removed in the v26.05 release.
+Use `--log-level debug -T nvme` instead.
