@@ -14,6 +14,9 @@ jobs:
     needs: tests
     # uses: spdk/spdk-ci/.github/workflows/summary.yml@main
     uses: glimchb/spdk-ci/.github/workflows/summary.yml@codecov    
+    with:
+      client_payload: ''
+      result: ''
     secrets: inherit
   codecov:
     needs: summary
