@@ -4,9 +4,25 @@ on:
   schedule:
     - cron: 41 23 * * *   # run daily
 jobs:
-  call:
+  tests:
     # uses: spdk/spdk-ci/.github/workflows/spdk-common-tests.yml@main
     uses: glimchb/spdk-ci/.github/workflows/spdk-common-tests.yml@codecov    
     with:
       force_pkgdep: false
     secrets: inherit
+  summary:
+    needs: tests
+    # uses: spdk/spdk-ci/.github/workflows/summary.yml@main
+    uses: glimchb/spdk-ci/.github/workflows/summary.yml@codecov    
+    secrets: inherit
+  codecov:
+    needs: summary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: _autorun_summary
+      - uses: codecov/codecov-action@v5.1.2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: glimchb/spdk
