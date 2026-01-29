@@ -6,4 +6,6 @@ on:
 jobs:
   call:
     uses: spdk/spdk-ci/.github/workflows/spdk-common-tests.yml@main
+    with:
+      force_pkgdep: false
     secrets: inherit
