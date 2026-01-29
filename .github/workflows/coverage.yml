@@ -1,0 +1,9 @@
+name: SPDK CI with code coverage
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 41 23 * * *   # run daily
+jobs:
+  call:
+    uses: spdk/spdk-ci/.github/workflows/spdk-common-tests.yml@main
+    secrets: inherit
