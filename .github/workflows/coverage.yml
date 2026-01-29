@@ -5,7 +5,8 @@ on:
     - cron: 41 23 * * *   # run daily
 jobs:
   call:
-    uses: spdk/spdk-ci/.github/workflows/spdk-common-tests.yml@main
+    # uses: spdk/spdk-ci/.github/workflows/spdk-common-tests.yml@main
+    uses: glimchb/spdk-ci/.github/workflows/spdk-common-tests.yml@codecov    
     with:
       force_pkgdep: false
     secrets: inherit
