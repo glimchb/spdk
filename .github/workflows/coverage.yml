@@ -17,6 +17,7 @@ jobs:
     with:
       client_payload: ''
       result: ''
+      skip_confirm: true
     secrets: inherit
   codecov:
     needs: summary
