@@ -31,4 +31,6 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: glimchb/spdk
-          directory: coverage
+          #directory: coverage
+          fail_ci_if_error: true
+          files: ./ut_coverage/ut_cov_unit.info,./ut_coverage/ut_cov_total.info
